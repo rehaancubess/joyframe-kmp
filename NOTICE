@@ -1,0 +1,13 @@
+Joyframe KMP
+Copyright 2026 Rehaan and contributors.
+
+The rendering, platform controller bindings and audio playback infrastructure were
+extracted and generalized by the project owner from Boat Brawl. Game source,
+assets, services and repository history are not distributed with this toolkit.
+
+The original project's Apache-2.0 license notice is retained in LICENSE,
+including its JetBrains template attribution. This does not imply endorsement
+by JetBrains, Kotlin, LWJGL or any other dependency author.
+
+The Gradle wrapper is distributed under Apache-2.0 by Gradle, Inc.
+Runtime dependencies retain their own licenses; see docs/dependencies.md.

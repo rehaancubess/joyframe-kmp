@@ -1,0 +1,20 @@
+name: Verify toolkit
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tools/audit-public-source.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - run: ./gradlew :joyframe:desktopTest :sample:compileKotlinDesktop :joyframe:compileDebugKotlinAndroid :joyframe:compileKotlinWasmJs :joyframe:compileKotlinIosSimulatorArm64 :joyframe:compileKotlinIosArm64 --stacktrace
