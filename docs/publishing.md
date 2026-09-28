@@ -51,6 +51,16 @@ all iOS variants. Never upload a repository archive containing build directories
 Do not paste credentials into an issue, chat, command-line argument or public log.
 The library uses the Vanniktech publishing plugin recommended by Kotlin's guide.
 
+## Release from GitHub (recommended)
+
+The four secrets above are stored on the repository (GitHub shows their names in upper case).
+In the Actions tab run **Release to Maven Central** with a tag such as `v0.1.0-alpha04`. It checks
+out that tag on a macOS runner, runs the tests, signs every target and uploads the bundle for
+validation. Then open **Deployments** at central.sonatype.com, check the validated deployment, and
+press **Publish**. Nothing is public before that click.
+
+From a terminal: `gh workflow run release.yml --repo rehaancubess/joyframe-kmp -f ref=v0.1.0-alpha04`.
+
 ## Upload for validation, then publish deliberately
 
 Only after credentials, signing and source review are complete:
