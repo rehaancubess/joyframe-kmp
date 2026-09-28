@@ -70,6 +70,14 @@ export ANDROID_HOME=/path/to/android-sdk
 ./gradlew :sample-android:assembleDebug            # Android APK
 ```
 
+| Platform | Run it |
+| --- | --- |
+| macOS, Linux | `./gradlew :sample:run` |
+| Windows | `./gradlew :sample:windowsJar`, then `java -jar LakeLab-windows-x64.jar` (Java 17+) |
+| Android | `./gradlew :sample-android:assembleDebug`, then install the APK |
+| iOS simulator | `tools/ios-simulator/run.sh` |
+| Browser | `./gradlew :sample:wasmJsBrowserDevelopmentRun`, or the live demo above |
+
 To sail your own model locally, pass `-Pjoyframe.demoBoat=path/to/boat.glb` (bow along
 +Z). The file is staged only in ignored build output, never in the repository. See
 [sample hosts and test checklist](docs/showcase.md), including the iOS entry point.

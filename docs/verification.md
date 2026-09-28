@@ -25,8 +25,18 @@ Local checks on 28 September 2026, macOS / JDK 17 / Kotlin 2.3.20:
   Held-key driving could not be exercised by the test tool (it sends instant taps);
   boat handling is covered by unit tests and the rendered animation instead.
 
-Not verified: any physical phone, tablet or controller; two real controllers at once;
-audible output, including pan and music; Windows/Linux; Android and iOS split screen
+- iOS simulator (iPhone 17 Pro, iOS 26), through `tools/ios-simulator/run.sh`: Lake Lab
+  launched and rendered with Metal; touch-stick sailing, the chase camera, **split screen
+  (the new single-pass Metal path) at runtime**, and the Hangar all worked, and a local
+  GLB loaded from bundled Compose resources. This found that the UI ignored safe areas
+  (header under the Dynamic Island); fixed with `WindowInsets.safeDrawing`, which
+  Android's enforced edge-to-edge needs too.
+- `:sample:windowsJar` was checked to contain the Windows x64 Skia, LWJGL and GLFW
+  natives, and the same jar ran on macOS (window opened, audio ready, no errors).
+  It has **not** been run on Windows.
+
+Not verified: any physical phone, tablet or controller; Windows or Linux at all; two
+real controllers at once; audible output, including pan and music; Android split screen
 at runtime; performance with weather on mobile GPUs. See `device-testing.md`.
 
 ## Alpha02 — Lake Lab and owned APIs

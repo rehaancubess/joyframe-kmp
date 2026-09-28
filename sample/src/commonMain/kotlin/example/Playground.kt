@@ -203,7 +203,8 @@ fun Playground() {
     }
     MaterialTheme(colors=darkColors(primary=Color(0xff82ead0),background=Color(0xff102730),surface=Color(0xff18323d))) {
         Surface(Modifier.fillMaxSize()) {
-            Column {
+            // Phones draw edge to edge: keep the UI clear of status bars, notches and gesture areas.
+            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 Row(Modifier.fillMaxWidth().padding(20.dp,12.dp),verticalAlignment=Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("JOYFRAME / LAKE LAB",style=MaterialTheme.typography.h6)

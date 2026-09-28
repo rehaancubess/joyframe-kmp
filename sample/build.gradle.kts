@@ -78,6 +78,29 @@ tasks.register<JavaExec>("captureDemo") {
     args(layout.buildDirectory.dir("capture").get().asFile.absolutePath)
     providers.gradleProperty("joyframe.demoBoat").orNull?.let { args(rootProject.file(it).absolutePath) }
 }
+// A runnable Lake Lab jar that also carries the Windows x64 natives, assembled on any OS.
+// On Windows with Java 17+: java -jar LakeLab-windows-x64.jar
+tasks.register<Jar>("windowsJar") {
+    group="distribution"
+    description="Runnable Lake Lab jar with Windows x64 natives (also runs on the machine that built it)."
+    val main=kotlin.jvm("desktop").compilations.getByName("main")
+    dependsOn(main.compileTaskProvider,"desktopProcessResources")
+    archiveFileName.set("LakeLab-windows-x64.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("windows"))
+    manifest { attributes("Main-Class" to "example.MainKt") }
+    duplicatesStrategy=DuplicatesStrategy.EXCLUDE
+    isZip64=true
+    from(main.output.allOutputs)
+    from({
+        val runtime=main.runtimeDependencyFiles.files
+        // Only Skia's native library is OS-specific; add the Windows one at the same version.
+        val skiko=runtime.first { it.name.startsWith("skiko-awt-runtime-") }.name.removeSuffix(".jar").substringAfterLast("-")
+        val windows=configurations.detachedConfiguration(
+            dependencies.create("org.jetbrains.skiko:skiko-awt-runtime-windows-x64:$skiko")).files
+        (runtime+windows).map { if(it.isDirectory) it else zipTree(it) }
+    })
+    exclude("META-INF/*.SF","META-INF/*.DSA","META-INF/*.RSA","module-info.class","META-INF/versions/*/module-info.class")
+}
 compose.desktop { application {
     mainClass = "example.MainKt"
     nativeDistributions {

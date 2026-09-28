@@ -25,12 +25,14 @@ and a generated music loop through `MusicPlayer`. Physics runs at a fixed 60 Hz.
   serve `sample/build/dist/wasmJs/developmentExecutable/` with an HTTP server, not `file://`.
 - Android: `./gradlew :sample-android:assembleDebug`; install the resulting debug APK
   on a GLES3-capable device. This is a separate sample app ID, not the private game's app.
-- iOS: `./gradlew :sample:linkDebugFrameworkIosSimulatorArm64` produces
-  `sample/build/bin/iosSimulatorArm64/debugFramework/LakeLab.framework`.
-  The Kotlin entry is `example.MainViewController()`, exported as
-  `MainKt.MainViewController()` in Swift. Add the framework to a simulator host
-  and display that controller. An Xcode app/signing project is not bundled yet.
-  Device builds use `linkDebugFrameworkIosArm64` and require a device host/signing setup.
+- Windows without Gradle or an Android SDK: on any OS run `./gradlew :sample:windowsJar`,
+  copy `sample/build/windows/LakeLab-windows-x64.jar` to the Windows PC, install Java 17+
+  and run `java -jar LakeLab-windows-x64.jar`. The jar also runs on the machine that built it.
+- iOS simulator: `tools/ios-simulator/run.sh` builds the framework and its resources,
+  links a minimal Swift host (`tools/ios-simulator/LakeLabApp.swift`), installs it on the
+  booted simulator and launches it. No Xcode project is needed. The Kotlin entry is
+  `example.MainViewController()`, exported as `MainKt.MainViewController()` in Swift.
+  Physical devices use `linkDebugFrameworkIosArm64` in your own signed app.
 
 No app-store submission or public hosting is performed by these commands.
 
