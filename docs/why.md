@@ -100,6 +100,16 @@ as controllers and tilt steering. Each of those behaves differently on every pla
 - The whirlpool the player sees and the one that pulls the boat were once two definitions that
   disagreed. In Joyframe the drawn funnel and `Whirlpool`'s pull share one `clockwise` flag.
 
+## It was never really about boats
+
+Look back at the list: audio blocking the game loop, an Android render path that hides dropped
+frames, too many pixels on phones, a camera fighting a fixed-step simulation, split screen, four
+controller APIs, tilt, browser and Mac view quirks. Only the whirlpool had anything to do with
+water. Those are the problems of shipping *any* real-time 3D game on every platform from one
+codebase, and they are the ones that took us longest, because each shows up on only one platform
+and only on a real device. Joyframe exists so a racer, a brawler or a marble game starts where
+our boat game ended up.
+
 ## What Joyframe is not
 
 It is not an engine or an editor. You own the game loop and the rules; Joyframe gives you a

@@ -1,7 +1,8 @@
 # Joyframe KMP
 
-A Kotlin Multiplatform game toolkit: 3D rendering, water, cameras, controllers and
-audio from one `commonMain`, on desktop, Android, iOS and the browser.
+A Kotlin Multiplatform toolkit for 3D games: rendering, cameras, controllers, split screen,
+audio and smoothness fixes from one `commonMain`, on desktop, Android, iOS and the browser.
+It came out of a boat game, but almost nothing in it is about boats.
 
 ![Lake Lab: a boat on a chase camera passes a whirlpool, then two-player split screen, then snow](docs/media/lake-lab.gif)
 
@@ -18,6 +19,31 @@ until every native audio call moved off the game thread. A mid-range Android pho
 steady 60 while the game ran at 39, with frames up to 350 ms. Couch play meant split screen, four
 different controller stacks, phones as controllers and tilt steering, each behaving differently per
 platform. Joyframe is those fixes, measured and pulled out of the game. [The full story](docs/why.md).
+
+## For any 3D game, not just boats
+
+Almost none of those fights were about boats. Any 3D game with sound stutters the same way, any
+Android GL game can hide the same 39 fps, any follow camera jitters over a fixed-step simulation,
+and any local multiplayer game meets the same split-screen and controller problems. The water,
+buoyancy and whirlpools are the only boat-flavoured parts, and they are optional.
+
+| What we fought | Where Joyframe solves it | Helps |
+| --- | --- | --- |
+| Sound stuttering the game | `AudioPlayer`, `MusicPlayer` | Every game with sound |
+| Android at 39 fps while showing 60 | Android `GameView`, `GameViewOptions` | Every 3D game on Android |
+| Phones shading pixels nobody sees | Resolution caps in `GameViewOptions` | Every 3D game on phones |
+| "It feels laggy" with no numbers | `FramePacing` | Every game |
+| A follow camera that jitters | `ChaseCamera`, `FixedTimestep` | Racers, third-person, anything that chases a player |
+| Split screen per platform | `SplitGameView`, `SplitLayout` | Couch co-op and versus |
+| Four controller stacks, players losing seats | `PlatformGamepad.pollAll`, `GamepadSeats` | Every controller game |
+| Tilt steering that drifts or inverts | `DeviceTilt` | Racing, rolling-ball, flying |
+| Blank canvas in browsers, misplaced views on Mac | Browser and macOS view hosts | Every Compose + 3D app |
+| Checking a change without a phone | `OffscreenRenderer`, JVM tests | Every project, especially AI-assisted |
+
+Good fits: kart and vehicle racers, arena brawlers, marble and physics toys, tank and ship games,
+low-poly exploration, puzzle and board games in 3D, model viewers and store screens. One honest
+limit today: models are static (no skeletal animation), so games built around animated characters
+need something more.
 
 ## Built for vibe coding
 

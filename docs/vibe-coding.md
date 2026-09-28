@@ -56,5 +56,6 @@ to call per frame, and how to verify a change. Point your assistant at it before
 3. Add the game loop with `GameSession` and `FixedTimestep`; test the rules on the JVM.
 4. Run on a phone, read `FramePacing` in a release build, and fix what the numbers say.
 
+None of this is specific to boats or water: the same defaults and checks carry any 3D game.
 Joyframe is an alpha, and it does not make an assistant a game designer. It makes the parts that
 are easy to get subtly wrong - timing, audio, input, platform quirks - already right.
