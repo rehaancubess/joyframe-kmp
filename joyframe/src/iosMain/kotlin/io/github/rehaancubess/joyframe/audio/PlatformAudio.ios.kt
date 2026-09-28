@@ -29,13 +29,14 @@ private class IosAudio(private val bank: AudioBank) : AudioBackend {
             for ((id, wav) in bank.effects) effects[id] = List(2) { player(wav) }
             engine = bank.loopBytes?.let(::player)?.apply { numberOfLoops = -1; volume = bank.loopVolume }
         },
-        playNow = { id, volume ->
+        playNow = { id, volume, pan ->
             playingVoices.removeAll { !it.playing }
             if (playingVoices.size < 4) {
                 val voice = effects[id]?.firstOrNull { !it.playing }
                 if (voice != null) {
                     voice.currentTime = 0.0
                     voice.volume = volume
+                    voice.pan = pan
                     if (voice.play()) {
                         playingVoices.addLast(voice)
                     }
@@ -54,6 +55,7 @@ private class IosAudio(private val bank: AudioBank) : AudioBackend {
             } else engine?.pause()
         },
         releaseNow = { effects.clear(); playingVoices.clear(); engine=null },
+        loopVolumeNow = { volume -> engine?.volume = volume },
     )
     private val observers = listOf(
         NSNotificationCenter.defaultCenter.addObserverForName(UIApplicationWillResignActiveNotification,
@@ -65,7 +67,8 @@ private class IosAudio(private val bank: AudioBank) : AudioBackend {
     override val status get() = worker.status
     override fun setForeground(value: Boolean) { requestedForeground=value; worker.setForeground(value && applicationActive) }
     override fun prepare() = worker.prepare()
-    override fun play(id: SoundId, volume: Float) = worker.play(id, volume)
+    override fun play(id: SoundId, volume: Float, pan: Float) = worker.play(id, volume, pan)
+    override fun setLoopVolume(volume: Float) = worker.setLoopVolume(volume)
     override fun setEngineEnabled(enabled: Boolean) = worker.setEngine(enabled)
     override fun stop() = worker.stop()
     override fun close() {

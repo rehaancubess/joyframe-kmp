@@ -26,6 +26,7 @@ internal class LwjglGl : GlApi {
     }
 
     override fun viewport(x: Int, y: Int, width: Int, height: Int) = GL33C.glViewport(x, y, width, height)
+    override fun scissor(x: Int, y: Int, width: Int, height: Int) = GL33C.glScissor(x, y, width, height)
     override fun clearColor(red: Float, green: Float, blue: Float, alpha: Float) =
         GL33C.glClearColor(red, green, blue, alpha)
 

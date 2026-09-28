@@ -36,6 +36,7 @@ internal class AndroidGl : GlApi {
         }
 
     override fun viewport(x: Int, y: Int, width: Int, height: Int) = GLES30.glViewport(x, y, width, height)
+    override fun scissor(x: Int, y: Int, width: Int, height: Int) = GLES30.glScissor(x, y, width, height)
     override fun clearColor(red: Float, green: Float, blue: Float, alpha: Float) =
         GLES30.glClearColor(red, green, blue, alpha)
 

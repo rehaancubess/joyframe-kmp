@@ -1,0 +1,39 @@
+name: Deploy Lake Lab to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tools/audit-public-source.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      # Procedural boat only: no -Pjoyframe.demoBoat, so no local model can reach the site.
+      - run: ./gradlew :sample:wasmJsBrowserDistribution --stacktrace
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sample/build/dist/wasmJs/productionExecutable
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

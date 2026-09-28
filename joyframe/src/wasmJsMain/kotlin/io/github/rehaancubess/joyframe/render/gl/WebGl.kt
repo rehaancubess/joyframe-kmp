@@ -22,6 +22,7 @@ internal class WebGl(private val gl: WebGL2) : GlApi {
     private val uniformLocations = GlObjects<WebGlUniformLocation>()
 
     override fun viewport(x: Int, y: Int, width: Int, height: Int) = gl.viewport(x, y, width, height)
+    override fun scissor(x: Int, y: Int, width: Int, height: Int) = gl.scissor(x, y, width, height)
 
     override fun clearColor(red: Float, green: Float, blue: Float, alpha: Float) =
         gl.clearColor(red, green, blue, alpha)
@@ -228,6 +229,7 @@ internal external interface WebGlUniformLocation : JsAny
 
 internal external interface WebGL2 : JsAny {
     fun viewport(x: Int, y: Int, width: Int, height: Int)
+    fun scissor(x: Int, y: Int, width: Int, height: Int)
     fun clearColor(red: Float, green: Float, blue: Float, alpha: Float)
     fun clear(mask: Int)
     fun enable(capability: Int)

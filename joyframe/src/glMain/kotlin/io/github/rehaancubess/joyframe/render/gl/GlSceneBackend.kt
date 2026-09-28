@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.rehaancubess.joyframe.render.gl
 
+import io.github.rehaancubess.joyframe.render.PaneRect
+import io.github.rehaancubess.joyframe.render.SplitLayout
 import io.github.rehaancubess.joyframe.render.gpu.GpuBlendMode
 import io.github.rehaancubess.joyframe.render.gpu.GpuCullMode
 import io.github.rehaancubess.joyframe.render.gpu.GpuMaterial
@@ -181,11 +183,18 @@ internal class GlSceneBackend private constructor(
     }
 
 
-    fun render(source: GpuSceneFrame, widthPixels: Int, heightPixels: Int, targetFramebuffer: Int = 0, background: (() -> Unit)? = null) {
+    /**
+     * [pane], when given, is one split-screen viewport in GL's bottom-left-origin pixels: the projection
+     * takes that pane's aspect, and the clear and every draw stay inside it, so panes already drawn this
+     * frame survive.
+     */
+    fun render(source: GpuSceneFrame, widthPixels: Int, heightPixels: Int, targetFramebuffer: Int = 0,
+               background: (() -> Unit)? = null, pane: PaneRect? = null) {
         val width = widthPixels.coerceAtLeast(1)
         val height = heightPixels.coerceAtLeast(1)
+        val area = pane ?: PaneRect(0, 0, width, height)
         val uploaded = assetsFor(source.assets)
-        buildFrameState(source, width.toFloat() / height.toFloat())
+        buildFrameState(source, area.aspect)
         collectDraws(source, uploaded)
         boundVertexArray = -1
         currentCull = Int.MIN_VALUE
@@ -194,7 +203,31 @@ internal class GlSceneBackend private constructor(
         gl.frontFace(GlConst.CCW)
 
         renderShadowPass()
-        renderScenePass(source, width, height, targetFramebuffer, background)
+        renderScenePass(source, area, pane != null, targetFramebuffer, background)
+    }
+
+    /**
+     * Every frame into its own pane of one surface, laid out by [SplitLayout]. The gutter between
+     * panes is the clear the panes do not cover. Frames should share one asset set (cache key), or
+     * the backend re-uploads geometry for each pane.
+     */
+    fun renderPanes(frames: List<GpuSceneFrame>, widthPixels: Int, heightPixels: Int, gutter: PackedColor,
+                    gapPixels: Int, targetFramebuffer: Int = 0) {
+        if (frames.size <= 1) {
+            frames.firstOrNull()?.let { render(it, widthPixels, heightPixels, targetFramebuffer) }
+            return
+        }
+        val width = widthPixels.coerceAtLeast(1)
+        val height = heightPixels.coerceAtLeast(1)
+        gl.bindFramebuffer(targetFramebuffer)
+        gl.viewport(0, 0, width, height)
+        gl.disable(GlConst.SCISSOR_TEST)
+        gl.clearColor(gutter.red, gutter.green, gutter.blue, 1f)
+        gl.depthMask(true)
+        gl.clear(GlConst.COLOR_BUFFER_BIT or GlConst.DEPTH_BUFFER_BIT)
+        SplitLayout.panes(frames.size, width, height, gapPixels).forEachIndexed { index, rect ->
+            render(frames[index], width, height, targetFramebuffer, pane = rect.flippedY(height))
+        }
     }
 
     private fun buildFrameState(source: GpuSceneFrame, aspect: Float) {
@@ -396,9 +429,13 @@ internal class GlSceneBackend private constructor(
         gl.disable(GlConst.POLYGON_OFFSET_FILL)
     }
 
-    private fun renderScenePass(source: GpuSceneFrame, width: Int, height: Int, targetFramebuffer: Int, background: (() -> Unit)?) {
+    private fun renderScenePass(source: GpuSceneFrame, pane: PaneRect, scissored: Boolean, targetFramebuffer: Int, background: (() -> Unit)?) {
         gl.bindFramebuffer(targetFramebuffer)
-        gl.viewport(0, 0, width, height)
+        gl.viewport(pane.x, pane.y, pane.width, pane.height)
+        if (scissored) {
+            gl.enable(GlConst.SCISSOR_TEST)
+            gl.scissor(pane.x, pane.y, pane.width, pane.height)
+        }
 
         val clear = source.environment.clearColor
         gl.clearColor(clear.red, clear.green, clear.blue, 1f)
@@ -468,6 +505,7 @@ internal class GlSceneBackend private constructor(
 
         gl.depthMask(true)
         bindVertexArray(0)
+        if (scissored) gl.disable(GlConst.SCISSOR_TEST)
     }
 
 

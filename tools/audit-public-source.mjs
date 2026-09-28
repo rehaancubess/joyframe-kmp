@@ -6,6 +6,8 @@ const files = [...new Set(execFileSync('git', ['ls-files', '-co', '--exclude-sta
 const findings = [];
 for (const file of files) {
   if (file === 'tools/audit-public-source.mjs') continue;
+  // Rendered screenshots and animations for the docs only. Models and audio stay prohibited everywhere.
+  if (/^docs\/media\/[\w.-]+\.(png|gif)$/i.test(file)) continue;
   if (/\.(glb|gltf|png|jpg|wav|mp3|keystore|jks|p12|mobileprovision|asc)$/i.test(file) || /(^|\/)(google-services\.json|GoogleService-Info\.plist|local\.properties|\.env.*)$/.test(file)) {
     findings.push(`${file}: unexpected asset or private configuration`);
     continue;

@@ -24,15 +24,16 @@ internal object MacGamepad : DesktopGamepadBackend {
         }
     }
 
-    private var pad: Pad? = null
+    private var pads: List<Pad> = emptyList()
 
 
     private var nextScanAt = System.nanoTime()
     private var unavailable: String? = null
 
-    override fun poll(): GamepadState? {
-        val pad = currentPad() ?: return null
+    override fun pollAll(): List<ConnectedGamepad> =
+        currentPads().map { ConnectedGamepad("gc-${Pointer.nativeValue(it.controller)}", it.name, read(it)) }
 
+    private fun read(pad: Pad): GamepadState {
         val stickX = pad.leftStickX.value()
         val stickY = pad.leftStickY.value()
         var horizontal = stickX
@@ -45,6 +46,8 @@ internal object MacGamepad : DesktopGamepadBackend {
 
         val south = pad.buttonA.pressed()
         val east = pad.buttonB.pressed()
+        val leftTrigger = pad.leftTrigger.trigger()
+        val rightTrigger = pad.rightTrigger.trigger()
         return GamepadState(
             horizontal = horizontal,
             vertical = vertical,
@@ -54,11 +57,23 @@ internal object MacGamepad : DesktopGamepadBackend {
             cancel = east,
             leftStickX = stickX,
             leftStickY = stickY,
+            rightStickX = pad.rightStickX.value(),
+            rightStickY = pad.rightStickY.value(),
+            leftTrigger = leftTrigger,
+            rightTrigger = rightTrigger,
+            buttons = GamepadMapping.buttons(
+                south, east, pad.buttonX.pressed(), pad.buttonY.pressed(),
+                pad.leftShoulder.pressed(), pad.rightShoulder.pressed(), leftTrigger, rightTrigger,
+                pad.buttonOptions.pressed(), pad.buttonMenu.pressed(),
+                pad.leftStickButton.pressed(), pad.rightStickButton.pressed(),
+                pad.dpadUp.pressed(), pad.dpadDown.pressed(), pad.dpadLeft.pressed(), pad.dpadRight.pressed(),
+            ),
         )
     }
 
     override fun status(): GamepadStatus {
-        val pad = currentPad()
+        val all = currentPads()
+        val pad = all.firstOrNull()
         unavailable?.let { return GamepadStatus(false, null, it) }
         return if (pad == null) {
             GamepadStatus(false, null, "No controller detected")
@@ -66,7 +81,7 @@ internal object MacGamepad : DesktopGamepadBackend {
             GamepadStatus(
                 connected = true,
                 name = pad.name,
-                detail = "Connected",
+                detail = if (all.size > 1) "Connected (${all.size} controllers)" else "Connected",
                 leftStickX = pad.leftStickX.value(),
                 leftStickY = pad.leftStickY.value(),
             )
@@ -79,7 +94,7 @@ internal object MacGamepad : DesktopGamepadBackend {
             val bridge = objc ?: return "GameController bridge unavailable"
             val pool = bridge.pushAutoreleasePool()
             try {
-                val controller = currentPad()?.controller
+                val controller = currentPads().firstOrNull()?.controller
                     ?: return bridge.describeControllers()
                 bridge.describeElements(controller)
             } finally {
@@ -100,14 +115,14 @@ internal object MacGamepad : DesktopGamepadBackend {
         return bridge.floatProperty(element, bridge.selValue)
     }
 
-    private fun currentPad(): Pad? {
-        if (unavailable != null) return null
+    private fun currentPads(): List<Pad> {
+        if (unavailable != null) return emptyList()
         val now = System.nanoTime()
         if (now - nextScanAt >= 0) {
             nextScanAt = now + RESCAN_INTERVAL_NANOS
             rescan()
         }
-        return pad
+        return pads
     }
 
     private fun rescan() {
@@ -118,31 +133,23 @@ internal object MacGamepad : DesktopGamepadBackend {
         try {
             val pool = bridge.pushAutoreleasePool()
             try {
-                val found = bridge.firstExtendedController()
-                val existing = pad
-                when {
-                    found == null -> {
-                        if (existing != null) {
-                            System.err.println("[gamepad] controller disconnected")
-                            bridge.release(existing.controller)
-                        }
-                        pad = null
-                    }
-                    existing != null && existing.controller == found -> Unit
-                    else -> {
-                        if (existing != null) bridge.release(existing.controller)
-                        pad = bridge.readPad(found).also {
-                            System.err.println("[gamepad] connected: ${it.name}")
-                        }
-                    }
+                val found = bridge.extendedControllers()
+                val kept = found.map { controller ->
+                    pads.firstOrNull { it.controller == controller }
+                        ?: bridge.readPad(controller).also { System.err.println("[gamepad] connected: ${it.name}") }
                 }
+                pads.filter { old -> kept.none { it.controller == old.controller } }.forEach {
+                    System.err.println("[gamepad] controller disconnected")
+                    bridge.release(it.controller)
+                }
+                pads = kept
             } finally {
                 bridge.popAutoreleasePool(pool)
             }
         } catch (t: Throwable) {
             System.err.println("[gamepad] controller support unavailable: $t")
             unavailable = "Controller support unavailable"
-            pad = null
+            pads = emptyList()
         }
     }
 
@@ -161,8 +168,15 @@ internal object MacGamepad : DesktopGamepadBackend {
         val buttonA: Pointer?,
         val buttonB: Pointer?,
         val buttonX: Pointer?,
+        val buttonY: Pointer?,
+        val leftShoulder: Pointer?,
         val rightShoulder: Pointer?,
         val buttonMenu: Pointer?,
+        val buttonOptions: Pointer?,
+        val leftStickButton: Pointer?,
+        val rightStickButton: Pointer?,
+        val rightStickX: Pointer?,
+        val rightStickY: Pointer?,
     )
 
 
@@ -185,6 +199,7 @@ internal object MacGamepad : DesktopGamepadBackend {
         private val selRelease = selector("release")
         private val selDpad = selector("dpad")
         private val selLeftThumbstick = selector("leftThumbstick")
+        private val selRightThumbstick = selector("rightThumbstick")
         private val selXAxis = selector("xAxis")
         private val selYAxis = selector("yAxis")
         private val selRespondsToSelector = selector("respondsToSelector:")
@@ -215,16 +230,13 @@ internal object MacGamepad : DesktopGamepadBackend {
             msgSend.invokeFloat(arrayOf<Any>(target, selector))
 
 
-        fun firstExtendedController(): Pointer? {
-            val controllers = objectProperty(gcControllerClass, selControllers) ?: return null
+        fun extendedControllers(): List<Pointer> {
+            val controllers = objectProperty(gcControllerClass, selControllers) ?: return emptyList()
             val count = msgSend.invokeLong(arrayOf<Any>(controllers, selCount))
-            for (index in 0 until count) {
-                val controller =
-                    msgSend.invokePointer(arrayOf<Any>(controllers, selObjectAtIndex, index))
-                        ?: continue
-                if (objectProperty(controller, selExtendedGamepad) != null) return controller
+            return (0 until count).mapNotNull { index ->
+                msgSend.invokePointer(arrayOf<Any>(controllers, selObjectAtIndex, index))
+                    ?.takeIf { objectProperty(it, selExtendedGamepad) != null }
             }
-            return null
         }
 
 
@@ -288,8 +300,19 @@ internal object MacGamepad : DesktopGamepadBackend {
                 buttonA = element(gamepad, "buttonA"),
                 buttonB = element(gamepad, "buttonB"),
                 buttonX = element(gamepad, "buttonX"),
+                buttonY = element(gamepad, "buttonY"),
+                leftShoulder = element(gamepad, "leftShoulder"),
                 rightShoulder = element(gamepad, "rightShoulder"),
                 buttonMenu = element(gamepad, "buttonMenu"),
+                buttonOptions = element(gamepad, "buttonOptions"),
+                leftStickButton = element(gamepad, "leftThumbstickButton"),
+                rightStickButton = element(gamepad, "rightThumbstickButton"),
+                rightStickX = gamepad
+                    ?.let { objectProperty(it, selRightThumbstick) }
+                    ?.let { objectProperty(it, selXAxis) },
+                rightStickY = gamepad
+                    ?.let { objectProperty(it, selRightThumbstick) }
+                    ?.let { objectProperty(it, selYAxis) },
             )
         }
 

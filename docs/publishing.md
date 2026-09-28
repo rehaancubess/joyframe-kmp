@@ -4,6 +4,14 @@ There are two separate milestones: public source on GitHub and installable
 artifacts on Maven Central. A GitHub release does not make Maven coordinates
 available from `mavenCentral()`.
 
+## Live browser demo (GitHub Pages)
+
+`.github/workflows/pages.yml` builds the Lake Lab browser distribution on every push
+to `main` and deploys it to `https://rehaancubess.github.io/joyframe-kmp/`. One-time
+owner step: in the repository's Settings → Pages, set **Source** to **GitHub Actions**.
+The workflow never passes `-Pjoyframe.demoBoat`, so the site always uses the
+procedural boat. Check the page on desktop and a phone after the first deploy.
+
 ## Local rehearsal (no upload)
 
 ```sh

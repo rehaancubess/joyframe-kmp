@@ -67,6 +67,17 @@ android {
         targetCompatibility=JavaVersion.VERSION_17
     }
 }
+// Offscreen stills and animation frames of Lake Lab (macOS). Output: sample/build/capture.
+tasks.register<JavaExec>("captureDemo") {
+    group="verification"
+    description="Renders Lake Lab reference stills and animation frames without a window (macOS only)."
+    val main=kotlin.jvm("desktop").compilations.getByName("main")
+    dependsOn(main.compileTaskProvider)
+    classpath=files(main.output.allOutputs,main.runtimeDependencyFiles)
+    mainClass.set("example.Capture")
+    args(layout.buildDirectory.dir("capture").get().asFile.absolutePath)
+    providers.gradleProperty("joyframe.demoBoat").orNull?.let { args(rootProject.file(it).absolutePath) }
+}
 compose.desktop { application {
     mainClass = "example.MainKt"
     nativeDistributions {

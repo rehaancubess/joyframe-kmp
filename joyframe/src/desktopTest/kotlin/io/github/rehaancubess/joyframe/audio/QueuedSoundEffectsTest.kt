@@ -10,7 +10,7 @@ class QueuedSoundEffectsTest {
     @Test fun failedLoadIsNotReportedAsReadyAndReleasesResources() = runBlocking {
         val released=AtomicInteger(0)
         val plays=AtomicInteger(0)
-        val worker=QueuedSoundEffects(load={ error("No device") },playNow={ _,_->plays.incrementAndGet() },
+        val worker=QueuedSoundEffects(load={ error("No device") },playNow={ _,_,_->plays.incrementAndGet() },
             stopNow={},releaseNow={ released.incrementAndGet() })
         worker.prepare()
         withTimeout(2000) { while(released.get()==0) delay(5) }
@@ -22,7 +22,7 @@ class QueuedSoundEffectsTest {
     @Test fun closeDuringPreloadDoesNotPublishReadyOrPlayQueuedSound() = runBlocking {
         val entered=CompletableDeferred<Unit>(); val finish=CompletableDeferred<Unit>()
         val released=AtomicInteger(0); val plays=AtomicInteger(0)
-        val worker=QueuedSoundEffects(load={ entered.complete(Unit); finish.await() },playNow={ _,_->plays.incrementAndGet() },
+        val worker=QueuedSoundEffects(load={ entered.complete(Unit); finish.await() },playNow={ _,_,_->plays.incrementAndGet() },
             stopNow={},releaseNow={ released.incrementAndGet() })
         worker.prepare(); withTimeout(2000) { entered.await() }
         worker.close(); worker.close(); finish.complete(Unit)
@@ -35,7 +35,7 @@ class QueuedSoundEffectsTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val starts = AtomicInteger(0)
         val stops = AtomicInteger(0)
-        val worker = QueuedSoundEffects(load = {}, playNow = { _, _ -> },
+        val worker = QueuedSoundEffects(load = {}, playNow = { _, _, _ -> },
             stopNow = { stops.incrementAndGet() }, engineNow = { if (it) starts.incrementAndGet() }, scope = scope)
         suspend fun until(condition: () -> Boolean) { withTimeout(2_000) { while (!condition()) delay(5) } }
         try {
@@ -63,7 +63,7 @@ class QueuedSoundEffectsTest {
         val release = CountDownLatch(1)
         val stopped = CountDownLatch(1)
         val plays = AtomicInteger(0)
-        val worker = QueuedSoundEffects(load = {}, playNow = { _, _ ->
+        val worker = QueuedSoundEffects(load = {}, playNow = { _, _, _ ->
             plays.incrementAndGet()
             entered.countDown()
             release.await(2, TimeUnit.SECONDS)
@@ -80,5 +80,28 @@ class QueuedSoundEffectsTest {
             assertTrue(stopped.await(2, TimeUnit.SECONDS))
             assertEquals(1, plays.get(), "obsolete hits must not burst after unmute/resume")
         } finally { release.countDown(); scope.cancel() }
+    }
+
+    @Test fun panAndLoopVolumeReachTheMixerAndFrequentChangesDoNotCrowdOutSounds() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pans = java.util.concurrent.ConcurrentLinkedQueue<Float>()
+        val volumes = java.util.concurrent.ConcurrentLinkedQueue<Float>()
+        val worker = QueuedSoundEffects(load = {}, playNow = { _, _, pan -> pans += pan }, stopNow = {},
+            loopVolumeNow = { volumes += it }, scope = scope)
+        suspend fun until(condition: () -> Boolean) { withTimeout(2_000) { while (!condition()) delay(5) } }
+        try {
+            worker.prepare()
+            until { worker.status.value == AudioStatus.Ready }
+            repeat(500) { worker.setLoopVolume(it / 500f) }
+            worker.play(SoundId("left"), 1f, -.6f)
+            until { pans.isNotEmpty() }
+            assertEquals(-.6f, pans.first(), .0001f)
+            worker.setLoopVolume(.25f)
+            until { volumes.lastOrNull() == .25f }
+            assertTrue(volumes.size < 500, "volume changes are coalesced, not queued one by one")
+            worker.play(SoundId("wide"), 1f, 7f)
+            until { pans.size == 2 }
+            assertEquals(1f, pans.last(), "pan is clamped")
+        } finally { scope.cancel() }
     }
 }

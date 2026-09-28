@@ -1,8 +1,21 @@
 # Lake Lab
 
 A deliberately small library consumer: a square lake, procedural border trees,
-and one boat. No score, combat, networking, private models or game-specific services.
-The boat's movement is in the **sample**, not the library API.
+two whirlpools, a bell buoy and a boat. No score, combat, networking, private models
+or game-specific services. Boat handling is in the **sample**, not the library API.
+
+Three modes:
+
+- **Lake**: overview camera with map steering (the stick points where you go), or the
+  game's chase camera with throttle and steer. Switch with the toggle, C, or controller Y.
+- **Split screen**: two boats and two chase cameras in one `SplitGameView`. Player one:
+  WASD + Space, the touch stick, or controller one. Player two: arrows + Enter or
+  controller two. Controllers keep their seats across disconnects.
+- **Hangar**: `ModelTurntable` with a paint choice and a manual turn slider.
+
+World toggles: whirlpools (pull, swirl, swallow and respawn with a camera cut, shake
+and splash), weather (snow, rain, sand), a bell buoy heard through `camera.hear`,
+and a generated music loop through `MusicPlayer`. Physics runs at a fixed 60 Hz.
 
 ## Run
 
@@ -39,10 +52,28 @@ The lagoon uses the extracted wave shaders, shoreline energy/depth masks and
 the original lagoon's optical/lighting values; camera, arena size and quality tier
 still affect its appearance. It is not a pixel-identical gameplay capture.
 
+## Capture stills and the README animation (macOS)
+
+`./gradlew :sample:captureDemo` renders reference stills of every feature and 140
+frames of a scripted drive into `sample/build/capture/`, using `OffscreenRenderer`.
+Add `-Pjoyframe.demoBoat=...` to render a local model. The README GIF is those
+frames through ffmpeg:
+
+```sh
+ffmpeg -framerate 20 -i sample/build/capture/frames/frame-%03d.png \
+  -vf "fps=12,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
+  -loop 0 docs/media/lake-lab.gif
+```
+
+Only rendered images under `docs/media/` are allowed by the source audit; model files are not.
+
 ## Learn by changing it
 
-- `LakeScene.kt`: scene materials, mesh helpers, boat model, trees and movement.
-- `Playground.kt`: Compose controls, action mapping, session/audio ownership and diagnostics.
+- `LakeScene.kt`: materials, whirlpool dishes and lake holes, boat and buoy models,
+  weather, and the overview/chase framing.
+- `Boats.kt`: fixed-step boat handling for both steering styles and the whirlpool pull.
+- `LakeAudio.kt`: horns, bell, splash and the music loop, all generated in code.
+- `Playground.kt`: modes, input seats, cameras, audio ownership and diagnostics.
 - The live sliders modify wave amplitude, camera distance, light intensity and stick deadzone.
 - Boat X/Z in the control strip makes motion/reset easy to verify.
 - Diagnostics show UI frame interval, not GPU timing/FPS or performance promises.
@@ -64,5 +95,7 @@ For each real target record OS/device, library version, controller model and res
 6. Close/reopen the scene repeatedly; no old audio, duplicated listeners or device leaks.
 7. Resize/rotate; controls remain usable, rendering bounds stay aligned.
 8. Disconnect/reconnect a controller; no stuck input. Record unsupported rumble honestly.
+
+The alpha03 features have their own checklist in [device-testing.md](device-testing.md).
 
 See `verification.md` for checks actually completed, not just this checklist.

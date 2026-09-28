@@ -1,5 +1,34 @@
 # Verification
 
+## Alpha03 — camera, split screen, controllers, weather and sound
+
+Local checks on 28 September 2026, macOS / JDK 17 / Kotlin 2.3.20:
+
+- 45 library desktop tests and 5 sample tests passed. New coverage: chase camera
+  framing, damping, cuts and shake; fixed-step counting and caps; buoyancy against the
+  swell; whirlpool pull, swirl direction and swallow; lake holes and funnel geometry
+  (including the dish staying above the lake across the hole edge); split layouts
+  without overlap; weather placement and near-lens fade; model bounds and turntable
+  framing; controller seats across disconnects; two-player key bindings and trigger
+  throttle; spatial pan and fade; audio pan, loop volume and coalesced state syncs.
+- Built: Android sample APK, browser distribution, iOS simulator framework **linked**,
+  iOS device sample compiled. Library compiled for desktop, Android, Wasm and iOS.
+- Staged 0.1.0-alpha03 Maven artifacts; the independent `consumer-check` (2 tests,
+  including the new APIs) passed, and the sample compiled for desktop and browser
+  against the staged artifact.
+- Offscreen macOS renders (`:sample:captureDemo`) were inspected: overview, chase,
+  split screen, snow, rain, sand, a whirlpool close-up and the hangar. Two defects
+  found this way were fixed: the lake's hole edge showed through the whirlpool dish,
+  and weather particles filled the view near the lens.
+- Browser (built-in Chromium): the page loads; overview renders; the C key switches
+  to the chase camera; Split screen shows two panes; Hangar shows the boat on its turntable.
+  Held-key driving could not be exercised by the test tool (it sends instant taps);
+  boat handling is covered by unit tests and the rendered animation instead.
+
+Not verified: any physical phone, tablet or controller; two real controllers at once;
+audible output, including pan and music; Windows/Linux; Android and iOS split screen
+at runtime; performance with weather on mobile GPUs. See `device-testing.md`.
+
 ## Alpha02 — Lake Lab and owned APIs
 
 Local checks on 22 September 2026, macOS / JDK 17 / Kotlin 2.3.20:

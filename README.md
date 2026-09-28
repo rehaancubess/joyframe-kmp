@@ -1,109 +1,135 @@
 # Joyframe KMP
 
-A Kotlin Multiplatform game toolkit with rendering, audio and controller support.
+A Kotlin Multiplatform game toolkit: 3D rendering, water, cameras, controllers and
+audio from one `commonMain`, on desktop, Android, iOS and the browser.
 
-**Experimental 0.1.0-alpha02.** One library, clean subsystem packages. Extracted
-from a real game, but this standalone integration is new: do not assume the
-original app's device coverage transfers automatically. Not yet on Maven Central.
+![Lake Lab: a boat on a chase camera passes a whirlpool, then two-player split screen, then snow](docs/media/lake-lab.gif)
+
+**Experimental 0.1.0-alpha03.** Extracted from a shipping arcade boat game, but this
+standalone library is new: the original app's device coverage does not transfer
+automatically. Not yet on Maven Central. **Try it in the browser:**
+[rehaancubess.github.io/joyframe-kmp](https://rehaancubess.github.io/joyframe-kmp/).
 
 ## What is included
 
-- A shared scene/mesh/material API with desktop OpenGL, Android GLES3, browser
-  WebGL2 and iOS Metal implementations, plus a Compose `GameView`.
-- Static GLB model loading, directional shadows, transparency, stylized water,
-  and matching CPU water-height/slope queries.
-- First-controller detection and a documented arcade mapping, deadzones and
-  best-effort rumble. No multi-controller/raw-all-buttons API yet.
-- Scene builders and procedural boxes, cones and water grids alongside the low-level API.
-- Shared keyboard/touch/controller actions and a pause-safe `GameSession`.
-- Scene-owned `AudioPlayer` banks with readiness/failure state, PCM16 WAV loading,
-  bounded cue queues and resource disposal. No spatial audio or streaming music.
-- Lake Lab: an asset-free boat scene with editable water, camera and lighting.
-  You own the game loop and rules; no private app assets are required.
+**Rendering**
+- One scene/mesh/material API with desktop OpenGL, Android GLES3, browser WebGL2 and
+  iOS Metal backends, shown by a Compose `GameView`.
+- Static GLB loading, directional shadows, transparency and stylized water, plus CPU
+  water height/slope queries that match the shader exactly.
+- `SplitGameView`: up to four player panes in one GPU surface (split screen).
+- `ChaseCamera`: the source game's damped chase framing, speed-widened lens, cuts and shake.
+- Whirlpool funnels, and `Weather` (snow, rain, blowing sand) that follows the camera.
+- `ModelTurntable` for character-select or store screens; `OffscreenRenderer` on macOS
+  for screenshots and GIFs.
 
-No game assets, accounts, server, analytics, purchases or backend credentials are
-included. This is a toolkit, not a complete engine or editor.
+**Gameplay helpers**
+- `FixedTimestep`: constant-rate physics with interpolated drawing.
+- `Buoyancy.pose`: hulls pitch, roll and heave on the same swell the water draws.
+- `Whirlpool`: pull, swirl and swallow, matching the drawn funnel.
 
-## Try the desktop playground
+**Input**
+- Keyboard, touch stick and controllers combined into one `ActionInput` per player,
+  with `drive` (steer + throttle, triggers included) and `movement` (direction).
+- Every connected controller (`PlatformGamepad.pollAll()`), with all buttons, both
+  sticks and both triggers, and stable local-player `GamepadSeats`.
+- `KeyBindings.Wasd` / `KeyBindings.Arrows` for two players on one keyboard.
 
-Requires JDK 17, an Android SDK with platform 36 installed (Gradle configures the
-Android library), and a GPU supporting OpenGL 3.3 / macOS OpenGL 4.1.
+**Audio**
+- Scene-owned `AudioPlayer` banks with readiness/failure state and clean disposal.
+- Stereo pan and distance fade (`SpatialMix`, `camera.hear(position, range)`).
+- `MusicPlayer`: a looped track on its own channel with volume and fades.
+
+No game assets, accounts, server, analytics, purchases or credentials are included.
+This is a toolkit, not an engine or editor: you own the game loop and the rules.
+
+## Lake Lab
+
+The sample is a small lake you can sail, in three modes:
+
+- **Lake**: switch between the overview and the game's chase camera (C or controller Y).
+  Toggle whirlpools, weather, a bell buoy you can locate by ear, and generated music.
+- **Split screen**: two boats, two chase cameras, one surface. Player one uses WASD +
+  Space or controller one; player two uses the arrows + Enter or controller two.
+- **Hangar**: the boat on a turntable.
+
+| Overview | Split screen | Hangar |
+| --- | --- | --- |
+| ![Lake overview with two whirlpools](docs/media/overview.png) | ![Two chase-camera panes](docs/media/split.png) | ![Boat on a turntable](docs/media/hangar.png) |
+
+Every sound, including the music, is generated in code. The screenshots use a local
+boat model; the public sample ships a procedural boat (see below).
+
+Requires JDK 17, an Android SDK with platform 36 (Gradle configures the Android
+library), and OpenGL 3.3 / macOS OpenGL 4.1.
 
 ```sh
 export ANDROID_HOME=/path/to/android-sdk
-./gradlew :sample:run
+./gradlew :sample:run                              # desktop
+./gradlew :sample:wasmJsBrowserDevelopmentRun      # browser
+./gradlew :sample-android:assembleDebug            # Android APK
 ```
 
-Lake Lab contains square water, 36 border trees and a movable boat. Drag the
-stick, use WASD/arrows, or connect a controller and move its left stick. Space,
-RB/west or **Horn** plays a generated cue. Pause/reset, mute, and adjust wave
-strength, camera distance, sunlight and controller deadzone. The code panel
-explains the setup; diagnostics report UI timing (not GPU frame time) and audio state.
+To sail your own model locally, pass `-Pjoyframe.demoBoat=path/to/boat.glb` (bow along
++Z). The file is staged only in ignored build output, never in the repository. See
+[sample hosts and test checklist](docs/showcase.md), including the iOS entry point.
 
-Browser: `./gradlew :sample:wasmJsBrowserDevelopmentRun`.
-Android: `./gradlew :sample-android:assembleDebug`.
-See [sample hosts and test checklist](docs/showcase.md), including the iOS framework entry point.
-
-See [the complete sample](sample/src/commonMain/kotlin/example/Playground.kt).
-
-## Use it locally
+## Use it
 
 ```sh
 ./gradlew :joyframe:publishToMavenLocal
 ```
 
-Then enable `mavenLocal()` in your app's repositories and add to `commonMain`:
+Enable `mavenLocal()` in your repositories and add to `commonMain`:
 
 ```kotlin
-implementation("io.github.rehaancubess:joyframe:0.1.0-alpha02")
+implementation("io.github.rehaancubess:joyframe:0.1.0-alpha03")
 ```
 
-These coordinates are a **local development build**, not a published Central
-release. iOS artifacts must be built on macOS with Xcode. The browser target is
-Kotlin/Wasm, not Kotlin/JS.
-
-## The basic pieces
+These coordinates are a **local build**, not a published Central release. iOS
+artifacts must be built on macOS with Xcode. The browser target is Kotlin/Wasm.
 
 ```kotlin
-val sound = SoundId("jump")
-val audio = AudioPlayer(mapOf(sound to PcmSound.tone()))
-// audio.status: Loading / AwaitingGesture / Ready / Failed / Closed
-audio.play(sound)
-
 val session = GameSession()
-val step = session.step(frameNanos, PlatformGamepad.poll())
-val movement = step.input.movement // normalized XY; positive Y = forward
+val fixed = FixedTimestep()
+val chase = ChaseCamera()
+val audio = AudioPlayer(mapOf(horn to PcmSound.tone(220f, .25f)))
 
-// Inside Compose, using a scene you build from your own assets:
-GameView(frame, Modifier.fillMaxSize(), active = !paused)
-// When leaving the scene:
-audio.close()
-session.close()
+// Once per frame:
+val step = session.step(frameNanos, PlatformGamepad.poll())
+repeat(fixed.advance(step.deltaSeconds)) { boat.tick(step.input.drive, fixed.stepSeconds) }
+val camera = chase.update(boat.position, boat.forward, boat.speed, step.deltaSeconds)
+if (GameAction.Interact in step.input.pressed) audio.play(horn)
+
+// In Compose, with a scene built from your own assets:
+GameView(assets.frame(camera, step.seconds) {
+    instance("boat", "boat", Buoyancy.pose(water, boat.x, boat.z, boat.yaw, step.seconds),
+        kind = InstanceKind.Dynamic)
+}, Modifier.fillMaxSize(), active = session.active)
 ```
 
 Imports are under `io.github.rehaancubess.joyframe`: `audio`, `input`, `render`,
-`render.gpu`, `render.gltf`, `render.math`, and `render.water`.
+`render.gpu`, `render.gltf`, `render.math` and `render.water`. The
+[quickstart](docs/quickstart.md) covers every feature above with runnable snippets.
 
-On Android initialize `JoyframeAndroid` with the application context before
-preparing audio, and forward controller events from the Activity. Browser audio
-requires a user gesture. Read [platform setup and limitations](docs/platforms.md)
-before integrating. Feed host foreground state into `session.foreground`, and
-pause rendering/audio with it. The library does not install an Android Activity observer.
-
-For a complete scene-builder example, see [the quickstart](docs/quickstart.md).
+On Android, initialize `JoyframeAndroid` with the application context before creating
+audio, and forward controller events from the Activity. Browser audio needs a user
+gesture. Read [platform setup and limitations](docs/platforms.md) before integrating.
 
 ## Development
 
 ```sh
-./gradlew :joyframe:desktopTest :sample:compileKotlinDesktop
+./gradlew :joyframe:desktopTest :sample:desktopTest
 ./gradlew :joyframe:compileDebugKotlinAndroid :joyframe:compileKotlinWasmJs
 # macOS + Xcode:
 ./gradlew :joyframe:compileKotlinIosSimulatorArm64 :joyframe:compileKotlinIosArm64
-# Package consumption without a project dependency:
+# Consume the package without a project dependency:
 ./gradlew :joyframe:publishAllPublicationsToStagingRepository
 ./gradlew -p consumer-check test
-./gradlew :sample:compileKotlinDesktop -Pjoyframe.usePublished=true
+# Offscreen stills and animation frames (macOS):
+./gradlew :sample:captureDemo
 ```
 
-[Architecture](docs/architecture.md) · [Publication checklist](docs/publishing.md)
-· [Contributing](CONTRIBUTING.md) · [License](LICENSE)
+[Architecture](docs/architecture.md) · [What was verified](docs/verification.md) ·
+[Device testing](docs/device-testing.md) · [Publishing](docs/publishing.md) ·
+[Contributing](CONTRIBUTING.md) · [License](LICENSE)

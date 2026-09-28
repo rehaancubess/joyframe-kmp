@@ -6,9 +6,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import io.github.rehaancubess.joyframe.render.gl.*
 import io.github.rehaancubess.joyframe.render.gpu.GpuSceneFrame
+import io.github.rehaancubess.joyframe.render.gpu.PackedColor
 import kotlinx.coroutines.*
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
@@ -26,8 +28,11 @@ import kotlin.math.roundToInt
  * Readback is a deliberate compatibility/performance tradeoff; capped at a 1200px long edge.
  */
 @Composable
-internal fun MacGameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
-    val latest = rememberUpdatedState(frame)
+internal fun MacGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean,
+                         gutter: PackedColor, gapDp: Float) {
+    val latest = rememberUpdatedState(frames)
+    val latestGutter = rememberUpdatedState(gutter)
+    val gapPixels = rememberUpdatedState(gapDp * LocalDensity.current.density)
     var size by remember { mutableStateOf(IntSize.Zero) }
     var image by remember { mutableStateOf<ImageBitmap?>(null) }
     val executor = remember { Executors.newSingleThreadExecutor { task ->
@@ -35,7 +40,7 @@ internal fun MacGameView(frame: GpuSceneFrame, modifier: Modifier, active: Boole
     } }
     val dispatcher = remember { executor.asCoroutineDispatcher() }
     val renderer = remember { MacFramebuffer() }
-    LaunchedEffect(size, active, if(active) null else frame) {
+    LaunchedEffect(size, active, if(active) null else frames) {
         if (size.width <= 0 || size.height <= 0) return@LaunchedEffect
         val scale = minOf(1f,1200f / size.width,1200f / size.height)
         val width = (size.width*scale).roundToInt().coerceAtLeast(1)
@@ -43,7 +48,9 @@ internal fun MacGameView(frame: GpuSceneFrame, modifier: Modifier, active: Boole
         do {
             withFrameNanos { }
             val current = latest.value
-            image = withContext(dispatcher) { renderer.render(current,width,height) }
+            val colour = latestGutter.value
+            val gap = (gapPixels.value * scale).roundToInt()
+            image = withContext(dispatcher) { renderer.render(current,width,height,colour,gap) }
         } while (active && isActive)
     }
     DisposableEffect(renderer) {
@@ -56,7 +63,7 @@ internal fun MacGameView(frame: GpuSceneFrame, modifier: Modifier, active: Boole
     }
 }
 
-private class MacFramebuffer {
+internal class MacFramebuffer {
     private var context = 0L
     private var api: LwjglGl? = null
     private var backend: GlSceneBackend? = null
@@ -88,10 +95,19 @@ private class MacFramebuffer {
         api = LwjglGl()
         backend = checkNotNull(GlSceneBackend.create(api!!,GlslDialect.Core330)) { "Joyframe shader compilation failed" }
     }
-    fun render(frame: GpuSceneFrame, wantedWidth: Int, wantedHeight: Int): ImageBitmap {
+    fun render(frames: List<GpuSceneFrame>, wantedWidth: Int, wantedHeight: Int,
+               gutter: PackedColor = SplitLayout.DefaultGutter, gap: Int = 0): ImageBitmap {
+        val bitmap = Bitmap()
+        bitmap.allocPixels(ImageInfo.makeN32(wantedWidth,wantedHeight,ColorAlphaType.OPAQUE))
+        bitmap.installPixels(renderPixels(frames,wantedWidth,wantedHeight,gutter,gap))
+        return bitmap.asComposeImageBitmap()
+    }
+    /** BGRA rows, bottom row first (GL order). The returned array is reused by the next call. */
+    fun renderPixels(frames: List<GpuSceneFrame>, wantedWidth: Int, wantedHeight: Int,
+                     gutter: PackedColor = SplitLayout.DefaultGutter, gap: Int = 0): ByteArray {
         initialize()
         if (width!=wantedWidth || height!=wantedHeight) allocate(wantedWidth,wantedHeight)
-        backend!!.render(frame,width,height,multisample)
+        backend!!.renderPanes(frames,width,height,gutter,gap,multisample)
         glBindFramebuffer(GL_READ_FRAMEBUFFER,multisample)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER,resolve)
         glBlitFramebuffer(0,0,width,height,0,0,width,height,GL_COLOR_BUFFER_BIT,GL_NEAREST)
@@ -100,10 +116,7 @@ private class MacFramebuffer {
         buffer.clear()
         glReadPixels(0,0,width,height,GL_BGRA,GL_UNSIGNED_BYTE,buffer)
         buffer.get(bytes)
-        val bitmap = Bitmap()
-        bitmap.allocPixels(ImageInfo.makeN32(width,height,ColorAlphaType.OPAQUE))
-        bitmap.installPixels(bytes)
-        return bitmap.asComposeImageBitmap()
+        return bytes
     }
     private fun allocate(w: Int,h: Int) {
         releaseBuffers()

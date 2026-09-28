@@ -3,9 +3,16 @@
 | Platform | Rendering | Controller | Audio |
 | --- | --- | --- | --- |
 | Desktop JVM | OpenGL 3.3 AWT; macOS 4.1 Core offscreen | GLFW on Windows/Linux; GameController via JNA on macOS | Java Sound; macOS system OpenAL |
-| Android API 26+ | GLES3 surface | Forward Activity key/motion events | SoundPool and an optional MediaPlayer loop |
-| iOS | Metal, MTKView | First extended GameController | AVAudioPlayer voices |
+| Android API 26+ | GLES3 surface | Forward Activity key/motion events, per device | SoundPool and an optional MediaPlayer loop |
+| iOS | Metal, MTKView | Every extended GameController | AVAudioPlayer voices |
 | Browser Wasm | WebGL2 DOM canvas | Browser Gamepad API | Web Audio; user gesture required |
+
+| Feature | Desktop | Android | iOS | Browser |
+| --- | --- | --- | --- | --- |
+| Split screen | One surface, scissored viewports | Same | One Metal pass, a shadow map per pane | Same as desktop |
+| Several controllers | Yes (GLFW / GameController) | Yes, by device id | Yes | Yes |
+| Stereo pan | OpenAL position (macOS); Java Sound PAN/BALANCE if the line offers it | SoundPool left/right volume | `AVAudioPlayer.pan` | `StereoPannerNode` where available |
+| Offscreen rendering | macOS only | No | No | No |
 
 This table describes implementations, not a hardware-certification matrix.
 See `verification.md` for checks actually performed on this extraction.
@@ -29,12 +36,19 @@ The toolkit does not install an Activity lifecycle observer automatically.
 
 ## Controls
 
-This alpha exposes an arcade preset: left X/D-pad for horizontal, RT minus LT /
-D-pad for vertical (iOS additionally falls back to left Y), RB or west face for
-action, south/east for confirm/cancel, Start for pause. Raw left-stick Y is now
-positive up on every backend. `ActionInput` combines this stick with keyboard/touch
-movement and action edges. Do not treat these as a complete raw-all-buttons input
-API yet. Only the first controller is used. Android callers must forward events.
+The arcade preset remains: left X/D-pad for horizontal, RT minus LT / D-pad for
+vertical (iOS additionally falls back to left Y), RB or west face for action,
+south/east for confirm/cancel, Start for pause. Raw stick Y is positive up on every
+backend. `GamepadState` also reports both sticks, both triggers and every face,
+shoulder, stick, D-pad, Start and Select button by position (`GamepadButton.North`
+is Y / Triangle). Home/guide buttons and touchpads are not exposed.
+
+`PlatformGamepad.poll()` reads the first controller; `pollAll()` reads every one with
+an id that is stable while it stays connected. `GamepadSeats` turns that list into
+player seats. `ActionInput` combines one player's keys (`KeyBindings`), touch stick
+and controller into `movement`, `drive` and action edges. Android callers must forward
+events; controllers are separated by `InputDevice` id. Rumble targets the first
+controller only.
 
 Rumble is best effort on Android/browser. Desktop and iOS controller rumble are
 currently no-ops. Device haptics are not part of this alpha. The Windows/Linux
@@ -51,6 +65,12 @@ Native effects are preloaded asynchronously; calls before ready
 are discarded. Up to four effects overlap, with two native voices per sound.
 Old native cues expire after 100 ms; stop invalidates pending cues.
 
+`play(id, volume, pan)` pans from -1 (left) to 1 (right); `play(id, SpatialMix)` takes
+the result of `SpatialMix.of(...)` or `camera.hear(position, range)`. Browsers without
+`StereoPannerNode` play centred. `setLoopVolume` changes the loop while it plays.
+`MusicPlayer` is a separate channel for a looped track with fades; it is decoded
+into memory, so keep it short. No streaming or compressed formats yet.
+
 Observe `AudioPlayer.status`: Loading, AwaitingGesture (web), Ready, Failed or Closed.
 Call `close()` on leaving the scene. It invalidates pending cues and releases
 native clips/buffers/players, browser contexts and registered listeners. Native
@@ -65,6 +85,10 @@ For browsers, mount `ComposeViewport` in a dedicated full-window `div` with
 `z-index: 0`, **not `document.body`**. Compose attaches a shadow root; owning the
 body hides the sibling WebGL canvas and produces a blank scene. Lake Lab's HTML
 and Wasm entry point demonstrate the required arrangement.
+
+`SplitGameView(frames)` draws up to four frames into one surface. Every frame should
+share one `GpuSceneAssets` (cache key); different assets per pane re-upload geometry
+each pane. The two-pane split follows the long edge (side by side in landscape).
 
 `GameView` displays frames; your coroutine or simulation owns updates. iOS uses
 Metal's display loop; desktop uses Compose frame timing and browser uses native requestAnimationFrame; Android

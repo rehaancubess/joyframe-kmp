@@ -52,9 +52,12 @@ private class AndroidAudio(private val bank: AudioBank) : AudioBackend {
             }
             files.forEach { it.delete() }; files.clear()
         },
-        playNow = { id,volume ->
+        playNow = { id,volume,pan ->
             soundIds[id]?.let { sound ->
-                val stream = pool?.play(sound,volume,volume,1,0,1f) ?: 0
+                // Balance law: centre keeps full volume in both ears, as before pan existed.
+                val left = volume * minOf(1f, 1f - pan)
+                val right = volume * minOf(1f, 1f + pan)
+                val stream = pool?.play(sound,left,right,1,0,1f) ?: 0
                 if(stream != 0) { if(streams.size==4) streams.removeFirst(); streams.addLast(stream) }
             }
         },
@@ -67,10 +70,12 @@ private class AndroidAudio(private val bank: AudioBank) : AudioBackend {
             pool?.release(); pool=null; engine?.release(); engine=null
             soundIds.clear(); loaded.clear(); files.forEach { it.delete() }; files.clear()
         },
+        loopVolumeNow = { volume -> engine?.setVolume(volume,volume) },
     )
     override val status get() = worker.status
     override fun prepare() = worker.prepare()
-    override fun play(id: SoundId, volume: Float) = worker.play(id,volume)
+    override fun play(id: SoundId, volume: Float, pan: Float) = worker.play(id,volume,pan)
+    override fun setLoopVolume(volume: Float) = worker.setLoopVolume(volume)
     override fun setForeground(value: Boolean) = worker.setForeground(value)
     override fun setEngineEnabled(enabled: Boolean) = worker.setEngine(enabled)
     override fun stop() = worker.stop()

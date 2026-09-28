@@ -35,6 +35,15 @@ and owned audio with readiness/failure/resource-release APIs. Lake Lab exercises
 them without private game dependencies. `consumer-check` is a separate Gradle
 build depending only on Maven artifacts, not `project` or `includeBuild`.
 
+Alpha03 adds game-feel helpers that are pure common code (`ChaseCamera`,
+`FixedTimestep`, `Buoyancy`, `Whirlpool`, `Weather`, `SpatialMix`, `SplitLayout`,
+`GamepadSeats`), so they behave identically everywhere and are unit tested on the
+JVM. The platform work is confined to three seams: backends render a list of panes
+(GL scissored viewports; one Metal pass with a shadow map per pane), controller
+backends enumerate every pad, and audio backends accept a pan and a loop volume.
+The audio worker coalesces state syncs so frequent volume changes cannot crowd
+sound cues out of its bounded queue.
+
 Next priorities: hardware smoke tests on every target; input lifecycle/device
 disconnect hardening; full configurable raw controller state; and a safer
 cross-platform Compose overlay path. The macOS viewport

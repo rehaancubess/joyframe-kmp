@@ -19,22 +19,25 @@ import kotlinx.coroutines.flow.update
 
 internal class QueuedSoundEffects(
     private val load: suspend () -> Unit,
-    private val playNow: (SoundId, Float) -> Unit,
+    private val playNow: (SoundId, Float, Float) -> Unit,
     private val stopNow: () -> Unit,
     private val engineNow: (Boolean) -> Unit = {},
     private val releaseNow: () -> Unit = {},
+    private val loopVolumeNow: (Float) -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val mutableStatus = MutableStateFlow<AudioStatus>(AudioStatus.Loading)
     val status = mutableStatus.asStateFlow()
     private val closed = AtomicInt(0)
-    private class Cue(val id: SoundId?, val volume: Float, val epoch: Int) {
+    private class Cue(val id: SoundId?, val volume: Float, val pan: Float, val epoch: Int) {
         val queuedAt = TimeSource.Monotonic.markNow()
     }
     private val epoch = AtomicInt(0)
     private val ready = AtomicInt(0)
     private val engineWanted = AtomicInt(0)
     private val foreground = AtomicInt(1)
+    private val loopVolume = AtomicInt((-1f).toRawBits())
+    private val wakeQueued = AtomicInt(0)
     private val pending = Channel<Cue>(4, BufferOverflow.DROP_OLDEST)
     private val job = scope.launch(start = CoroutineStart.LAZY) {
       try {
@@ -45,10 +48,13 @@ internal class QueuedSoundEffects(
         mutableStatus.compareAndSet(AudioStatus.Loading,AudioStatus.Ready)
         var appliedEpoch = 0
         var enginePlaying = false
+        var appliedLoopVolume = -1f
         for (cue in pending) {
             if(closed.load() == 1) break
+            // Every cue syncs state, so a wake dropped by the bounded queue is covered by what follows it.
+            wakeQueued.store(0)
             val generation = epoch.load()
-            if (cue.epoch != generation) continue
+            val stale = cue.epoch != generation
             run {
                 if (appliedEpoch != generation) {
                     stopNow()
@@ -60,8 +66,13 @@ internal class QueuedSoundEffects(
                     engineNow(wantsEngine)
                     enginePlaying = wantsEngine
                 }
-                if (cue.id != null && foreground.load() == 1 &&
-                    cue.queuedAt.elapsedNow().inWholeMilliseconds < 100) playNow(cue.id, cue.volume)
+                val wantedVolume = Float.fromBits(loopVolume.load())
+                if (wantedVolume >= 0f && wantedVolume != appliedLoopVolume) {
+                    loopVolumeNow(wantedVolume)
+                    appliedLoopVolume = wantedVolume
+                }
+                if (cue.id != null && !stale && foreground.load() == 1 &&
+                    cue.queuedAt.elapsedNow().inWholeMilliseconds < 100) playNow(cue.id, cue.volume, cue.pan)
             }
         }
       } catch(failure: Throwable) {
@@ -74,9 +85,13 @@ internal class QueuedSoundEffects(
     }
 
     fun prepare() { job.start() }
-    fun play(id: SoundId, volume: Float) {
+    fun play(id: SoundId, volume: Float, pan: Float = 0f) {
         if (closed.load() == 1 || ready.load() == 0 || foreground.load() == 0) return
-        pending.trySend(Cue(id, volume.coerceIn(0f, 1f), epoch.load()))
+        pending.trySend(Cue(id, volume.coerceIn(0f, 1f), pan.coerceIn(-1f, 1f), epoch.load()))
+    }
+    fun setLoopVolume(volume: Float) {
+        val next = volume.coerceIn(0f, 1f).toRawBits()
+        if (loopVolume.exchange(next) != next) wake()
     }
     fun setEngine(enabled: Boolean) {
         val next = if (enabled) 1 else 0
@@ -100,5 +115,8 @@ internal class QueuedSoundEffects(
         pending.close()
         job.start()
     }
-    private fun wake() { pending.trySend(Cue(null, 0f, epoch.load())) }
+    /** At most one sync request is queued, so frequent volume changes cannot crowd out sounds. */
+    private fun wake() {
+        if (wakeQueued.exchange(1) == 0 && !pending.trySend(Cue(null, 0f, 0f, epoch.load())).isSuccess) wakeQueued.store(0)
+    }
 }

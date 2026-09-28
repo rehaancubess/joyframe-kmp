@@ -10,4 +10,5 @@ Joyframe is Apache-2.0. Dependencies are not relicensed by this project.
 
 Review dependency licenses when bundling an application. Joyframe source contains
 no models, textures, recorded audio, store configuration, backend keys or private
-gameplay code. The sample geometry and tone are generated in code.
+gameplay code. The sample geometry, sounds and music are generated in code. The
+images under `docs/media/` are renders made with `:sample:captureDemo`.

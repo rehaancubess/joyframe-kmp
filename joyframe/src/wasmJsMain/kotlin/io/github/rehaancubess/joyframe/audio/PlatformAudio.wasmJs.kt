@@ -16,6 +16,7 @@ private class WebAudio(private val bank: AudioBank) : AudioBackend {
     private var listeners: JsAny? = null
     private var engineBuffer: AudioBuffer? = null
     private var engine: Pair<BufferSourceNode,GainNode>? = null
+    private var loopVolume = bank.loopVolume
     private var remaining = bank.effects.size + if(bank.loopBytes == null) 0 else 1
     private var activated = false
     private var wanted = false
@@ -47,18 +48,23 @@ private class WebAudio(private val bank: AudioBank) : AudioBackend {
     }
     override fun setForeground(value: Boolean) { foreground=value; if(!value) stopEffects(); syncEngine() }
     override fun setEngineEnabled(enabled: Boolean) { wanted=enabled; syncEngine() }
-    private fun source(buffer: AudioBuffer, volume: Float, loop: Boolean): Pair<BufferSourceNode,GainNode> {
+    private fun source(buffer: AudioBuffer, volume: Float, loop: Boolean, pan: Float = 0f): Pair<BufferSourceNode,GainNode> {
         val ctx = checkNotNull(context)
         val gain = ctx.createGain(); gain.gain.value=volume; gain.connect(ctx.destination)
-        val source = ctx.createBufferSource(); source.buffer=buffer; source.loop=loop; source.connect(gain)
+        val source = ctx.createBufferSource(); source.buffer=buffer; source.loop=loop
+        // Source -> panner -> gain; the panner is released with the source when it disconnects.
+        val panner = if (pan != 0f) createStereoPanner(ctx) else null
+        if (panner != null) { panner.pan.value = pan; source.connect(panner); panner.connect(gain) }
+        else source.connect(gain)
         return source to gain
     }
-    override fun play(id: SoundId, volume: Float) {
+    override fun setLoopVolume(volume: Float) { loopVolume=volume; engine?.second?.gain?.value=volume }
+    override fun play(id: SoundId, volume: Float, pan: Float) {
         if(closed || !foreground || !visible || state.value != AudioStatus.Ready) return
         val buffer = effects[id] ?: return
         runCatching {
             if(voices.size==4) release(voices.removeFirst())
-            val voice = source(buffer,volume,false)
+            val voice = source(buffer,volume,false,pan)
             voices.addLast(voice)
             voice.first.onended = { voices.remove(voice); release(voice) }
             voice.first.start()
@@ -70,7 +76,7 @@ private class WebAudio(private val bank: AudioBank) : AudioBackend {
         }
         if(engine != null) return
         val buffer = engineBuffer ?: return
-        runCatching { engine=source(buffer,bank.loopVolume,true).also { it.first.start() } }
+        runCatching { engine=source(buffer,loopVolume,true).also { it.first.start() } }
             .onFailure { fail(it.message ?: "Loop playback failed") }
     }
     private fun release(voice: Pair<BufferSourceNode,GainNode>) {
@@ -108,6 +114,9 @@ private fun newAudioContext(): AudioContext = js("new (window.AudioContext || wi
 internal external interface AudioParam : JsAny { var value: Float }
 internal external interface AudioNode : JsAny { fun connect(destination: AudioNode); fun disconnect() }
 internal external interface GainNode : AudioNode { val gain: AudioParam }
+internal external interface StereoPannerNode : AudioNode { val pan: AudioParam }
+/** Null where a browser lacks StereoPannerNode; sound then plays centred. */
+private fun createStereoPanner(ctx: AudioContext): StereoPannerNode? = js("ctx.createStereoPanner ? ctx.createStereoPanner() : null")
 internal external interface AudioBuffer : JsAny
 internal external interface BufferSourceNode : AudioNode {
     var buffer: AudioBuffer?

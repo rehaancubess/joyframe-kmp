@@ -19,26 +19,29 @@ private class DesktopAudio(bank: AudioBank) : AudioBackend {
     ) MacOpenAlMixer(bank) else JavaSoundMixer(bank)
     private val worker = QueuedSoundEffects(
         load = { synchronized(audioDeviceLock) { mixer.load() } },
-        playNow = { id, volume -> synchronized(audioDeviceLock) { mixer.play(id,volume) } },
+        playNow = { id, volume, pan -> synchronized(audioDeviceLock) { mixer.play(id,volume,pan) } },
         stopNow = { synchronized(audioDeviceLock) { mixer.stop() } },
         engineNow = { synchronized(audioDeviceLock) { mixer.setEngineEnabled(it) } },
         releaseNow = { synchronized(audioDeviceLock) { mixer.close() } },
+        loopVolumeNow = { synchronized(audioDeviceLock) { mixer.setLoopVolume(it) } },
     )
 
     override val status get() = worker.status
     override fun setForeground(value: Boolean) = worker.setForeground(value)
     override fun prepare() = worker.prepare()
-    override fun play(id: SoundId, volume: Float) = worker.play(id, volume)
+    override fun play(id: SoundId, volume: Float, pan: Float) = worker.play(id, volume, pan)
     override fun setEngineEnabled(enabled: Boolean) = worker.setEngine(enabled)
+    override fun setLoopVolume(volume: Float) = worker.setLoopVolume(volume)
     override fun stop() = worker.stop()
     override fun close() = worker.close()
 }
 
 private interface DesktopMixer {
     fun load()
-    fun play(id: SoundId, volume: Float)
+    fun play(id: SoundId, volume: Float, pan: Float)
     fun stop()
     fun setEngineEnabled(enabled: Boolean)
+    fun setLoopVolume(volume: Float)
     fun close()
 }
 
@@ -75,11 +78,20 @@ private class JavaSoundMixer(private val bank: AudioBank) : DesktopMixer {
         engine = bank.loopBytes?.let(::openClip)?.also { setVolume(it, bank.loopVolume) }
     }
 
-    override fun play(id: SoundId, volume: Float) {
+    private fun setPan(clip: Clip, pan: Float) {
+        val type = listOf(FloatControl.Type.PAN, FloatControl.Type.BALANCE).firstOrNull(clip::isControlSupported) ?: return
+        val control = clip.getControl(type) as FloatControl
+        control.value = pan.coerceIn(control.minimum, control.maximum)
+    }
+
+    override fun setLoopVolume(volume: Float) { engine?.let { setVolume(it, volume) } }
+
+    override fun play(id: SoundId, volume: Float, pan: Float) {
         playingVoices.removeAll { !it.isRunning }
         if (playingVoices.size >= MAX_SIMULTANEOUS_VOICES) return
         voices[id]?.firstOrNull { !it.isRunning }?.let { clip ->
             setVolume(clip, volume)
+            setPan(clip, pan)
             clip.framePosition = 0
             clip.start()
             playingVoices.addLast(clip)
@@ -125,7 +137,8 @@ private class MacOpenAlMixer(private val bank: AudioBank) : DesktopMixer {
             check(api.alcMakeContextCurrent(context).toInt() != 0) { "OpenAL could not activate its context" }
             for ((id, wav) in bank.effects) {
                 val buffer = makeBuffer(wav)
-                voices[id] = IntArray(2) { makeSource(buffer) }
+                // Listener-relative, so a position one unit away pans without distance attenuation.
+                voices[id] = IntArray(2) { makeSource(buffer).also { api.alSourcei(it, AL_SOURCE_RELATIVE, AL_TRUE) } }
             }
             engineSource = bank.loopBytes?.let { makeSource(makeBuffer(it)) }?.also { source ->
                 api.alSourcei(source, AL_LOOPING, AL_TRUE)
@@ -135,12 +148,18 @@ private class MacOpenAlMixer(private val bank: AudioBank) : DesktopMixer {
             System.err.println("[audio] macOS OpenAL mixer ready")
     }
 
-    override fun play(id: SoundId, volume: Float) {
+    override fun setLoopVolume(volume: Float) {
+        if (activate() && engineSource != 0) api.alSourcef(engineSource, AL_GAIN, volume.coerceIn(0f, 1f))
+    }
+
+    override fun play(id: SoundId, volume: Float, pan: Float) {
         if (!activate()) return
         playingVoices.removeAll { sourceState(it) != AL_PLAYING }
         if (playingVoices.size >= MAX_SIMULTANEOUS_VOICES) return
         voices[id]?.firstOrNull { sourceState(it) != AL_PLAYING }?.let { source ->
             api.alSourcef(source, AL_GAIN, volume.coerceIn(0f, 1f))
+            val side = pan.coerceIn(-1f, 1f)
+            api.alSource3f(source, AL_POSITION, side, 0f, -kotlin.math.sqrt(1f - side * side))
             api.alSourceRewind(source)
             api.alSourcePlay(source)
             playingVoices.addLast(source)
@@ -206,6 +225,8 @@ private class MacOpenAlMixer(private val bank: AudioBank) : DesktopMixer {
         const val AL_GAIN = 0x100A
         const val AL_LOOPING = 0x1007
         const val AL_SOURCE_STATE = 0x1010
+        const val AL_POSITION = 0x1004
+        const val AL_SOURCE_RELATIVE = 0x202
         const val AL_PLAYING = 0x1012
     }
 }
@@ -223,6 +244,7 @@ private interface MacOpenAl : Library {
     fun alGenSources(count: Int, sources: IntByReference)
     fun alSourcei(source: Int, parameter: Int, value: Int)
     fun alSourcef(source: Int, parameter: Int, value: Float)
+    fun alSource3f(source: Int, parameter: Int, x: Float, y: Float, z: Float)
     fun alSourcePlay(source: Int)
     fun alSourceStop(source: Int)
     fun alSourceRewind(source: Int)

@@ -4,6 +4,7 @@ package io.github.rehaancubess.joyframe.render.gl
 internal interface GlApi {
 
     fun viewport(x: Int, y: Int, width: Int, height: Int)
+    fun scissor(x: Int, y: Int, width: Int, height: Int)
     fun clearColor(red: Float, green: Float, blue: Float, alpha: Float)
     fun clear(mask: Int)
     fun enable(capability: Int)
@@ -89,6 +90,7 @@ internal interface GlApi {
 
 internal object GlConst {
     const val DEPTH_TEST = 0x0B71
+    const val SCISSOR_TEST = 0x0C11
     const val BLEND = 0x0BE2
     const val CULL_FACE = 0x0B44
     const val POLYGON_OFFSET_FILL = 0x8037

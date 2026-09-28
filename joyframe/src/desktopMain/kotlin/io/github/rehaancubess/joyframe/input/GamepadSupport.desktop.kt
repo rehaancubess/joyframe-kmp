@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.rehaancubess.joyframe.input
 
-import io.github.rehaancubess.joyframe.input.GamepadTuning
-
 actual object PlatformGamepad {
     private val backend: DesktopGamepadBackend =
         if (System.getProperty("os.name").orEmpty().contains("mac", ignoreCase = true)) {
@@ -11,7 +9,10 @@ actual object PlatformGamepad {
             GlfwGamepad
         }
 
-    actual fun poll(): GamepadState? = backend.poll()?.let(GamepadMapping::apply)
+    actual fun poll(): GamepadState? = backend.pollAll().firstOrNull()?.state?.let(GamepadMapping::apply)
+
+    actual fun pollAll(): List<ConnectedGamepad> =
+        backend.pollAll().map { it.copy(state = GamepadMapping.apply(it.state)) }
 
     actual fun status(): GamepadStatus = backend.status()
 
@@ -26,7 +27,7 @@ actual object PlatformGamepad {
 }
 
 internal interface DesktopGamepadBackend {
-    fun poll(): GamepadState?
+    fun pollAll(): List<ConnectedGamepad>
 
     fun status(): GamepadStatus
 

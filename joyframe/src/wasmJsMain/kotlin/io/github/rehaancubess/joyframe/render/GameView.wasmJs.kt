@@ -8,15 +8,23 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import io.github.rehaancubess.joyframe.render.gl.*
 import io.github.rehaancubess.joyframe.render.gpu.GpuSceneFrame
+import io.github.rehaancubess.joyframe.render.gpu.PackedColor
 import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.HTMLCanvasElement
+import kotlin.math.roundToInt
 
 /** Use ComposeViewport with a dedicated div, not body: its shadow root otherwise hides this canvas.
  * The DOM canvas occupies the viewport rectangle; Compose overlays on top are not supported yet.
  */
 @Composable
 actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
+    SplitGameView(listOf(frame), modifier, active)
+}
+
+@Composable
+actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor, gapDp: Float) {
+    require(frames.size in 1..SplitLayout.MAX_PANES) { "SplitGameView needs 1 to ${SplitLayout.MAX_PANES} frames" }
     val canvas = remember { (document.createElement("canvas") as HTMLCanvasElement).apply {
         style.position = "fixed"
         style.setProperty("pointer-events", "none")
@@ -25,7 +33,9 @@ actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
         style.display = "block"
         setAttribute("data-joyframe-renderer","WebGL2")
     } }
-    val latest = rememberUpdatedState(frame)
+    val latest = rememberUpdatedState(frames)
+    val latestGutter = rememberUpdatedState(gutter)
+    val latestGap = rememberUpdatedState(gapDp)
     val running = rememberUpdatedState(active)
     var failure by remember { mutableStateOf<String?>(null) }
     DisposableEffect(canvas) {
@@ -37,7 +47,7 @@ actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
             val context = checkNotNull(webGl2Context(canvas, true)) { "Joyframe requires WebGL2" }
             val api=WebGl(context)
             backend = checkNotNull(GlSceneBackend.create(api, GlslDialect.Es300)) { "WebGL shader initialization failed" }
-            var previous: GpuSceneFrame? = null
+            var previous: List<GpuSceneFrame>? = null
             var width = 0
             var height = 0
             fun draw() {
@@ -46,7 +56,8 @@ actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
                     val current=latest.value
                     if(running.value || current != previous || width != canvas.width || height != canvas.height) {
                         width=canvas.width; height=canvas.height
-                        backend?.render(current,width.coerceAtLeast(1),height.coerceAtLeast(1))
+                        val gap = (latestGap.value * window.devicePixelRatio).roundToInt()
+                        backend?.renderPanes(current,width.coerceAtLeast(1),height.coerceAtLeast(1),latestGutter.value,gap)
                         if(previous==null) {
                             check(api.getError()==0) { "WebGL reported an error while drawing the first frame" }
                             canvas.setAttribute("data-joyframe-state","ready")

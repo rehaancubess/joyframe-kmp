@@ -3,6 +3,7 @@
 
 package io.github.rehaancubess.joyframe.render.metal
 
+import io.github.rehaancubess.joyframe.render.PaneRect
 import io.github.rehaancubess.joyframe.render.gpu.GpuBlendMode
 import io.github.rehaancubess.joyframe.render.gpu.GpuCullMode
 import io.github.rehaancubess.joyframe.render.gpu.GpuMaterial
@@ -31,6 +32,9 @@ import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import platform.Foundation.NSError
 import platform.Metal.MTLBlendFactorOne
+import platform.Metal.MTLClearColorMake
+import platform.Metal.MTLScissorRect
+import platform.Metal.MTLViewport
 import platform.Metal.MTLBlendFactorOneMinusSourceAlpha
 import platform.Metal.MTLBlendFactorSourceAlpha
 import platform.Metal.MTLBlendOperationAdd
@@ -250,10 +254,66 @@ internal class MetalSceneBackend private constructor(
         collectDraws(frame, uploaded)
 
         val commandBuffer = commandQueue.commandBuffer() ?: return
-        encodeShadowPass(commandBuffer)
+        encodeShadowPass(commandBuffer, shadowMap)
         encodeScenePass(passDescriptor, commandBuffer, transparentBackground)
         if (drawable != null) commandBuffer.presentDrawable(drawable)
         commandBuffer.commit()
+    }
+
+    /**
+     * Split screen: every pane's shadow pass first, each into its own shadow map, then one scene pass
+     * that moves the viewport and scissor from pane to pane. One pass rather than one per pane because
+     * a Metal clear load action clears the whole attachment, not a viewport of it. Panes never overlap,
+     * so the single depth clear serves them all. [panes] use Metal's top-left origin.
+     */
+    fun renderSplit(
+        frames: List<GpuSceneFrame>,
+        panes: List<PaneRect>,
+        gutter: PackedColor,
+        passDescriptor: MTLRenderPassDescriptor,
+        drawable: MTLDrawableProtocol?,
+    ) {
+        val count = minOf(frames.size, panes.size)
+        if (count == 0) return
+        val commandBuffer = commandQueue.commandBuffer() ?: return
+        for (index in 0 until count) {
+            buildFrameUniforms(frames[index], panes[index].aspect)
+            collectDraws(frames[index], assetsFor(frames[index].assets))
+            encodeShadowPass(commandBuffer, shadowMapFor(index))
+        }
+        passDescriptor.colorAttachments.objectAtIndexedSubscript(0uL)?.clearColor =
+            MTLClearColorMake(gutter.red.toDouble(), gutter.green.toDouble(), gutter.blue.toDouble(), 1.0)
+        val encoder = commandBuffer.renderCommandEncoderWithDescriptor(passDescriptor) ?: return
+        encoder.setFrontFacingWinding(MTLWindingCounterClockwise)
+        for (index in 0 until count) {
+            val pane = panes[index]
+            buildFrameUniforms(frames[index], pane.aspect)
+            collectDraws(frames[index], assetsFor(frames[index].assets))
+            encoder.setViewport(cValue<MTLViewport> {
+                originX = pane.x.toDouble(); originY = pane.y.toDouble()
+                width = pane.width.toDouble(); height = pane.height.toDouble()
+                znear = 0.0; zfar = 1.0
+            })
+            encoder.setScissorRect(cValue<MTLScissorRect> {
+                x = pane.x.toULong(); y = pane.y.toULong()
+                width = pane.width.toULong(); height = pane.height.toULong()
+            })
+            encodeSceneContents(encoder, transparentBackground = false, shadow = shadowMapFor(index))
+        }
+        encoder.endEncoding()
+        if (drawable != null) commandBuffer.presentDrawable(drawable)
+        commandBuffer.commit()
+    }
+
+    /** Pane zero shares the single-view shadow map; the rest are made the first time they are needed. */
+    private val extraShadowMaps = ArrayList<MTLTextureProtocol>()
+
+    private fun shadowMapFor(pane: Int): MTLTextureProtocol {
+        if (pane == 0) return shadowMap
+        while (extraShadowMaps.size < pane) {
+            extraShadowMaps += device.newTextureWithDescriptor(shadowTextureDescriptor()) ?: return shadowMap
+        }
+        return extraShadowMaps[pane - 1]
     }
 
     private fun buildFrameUniforms(frame: GpuSceneFrame, aspect: Float) {
@@ -461,11 +521,11 @@ internal class MetalSceneBackend private constructor(
         if (blendedDraws.size > 1) blendedDraws.sortWith(farToNear)
     }
 
-    private fun encodeShadowPass(commandBuffer: MTLCommandBufferProtocol) {
+    private fun encodeShadowPass(commandBuffer: MTLCommandBufferProtocol, target: MTLTextureProtocol) {
         if (frameUniforms[FRAME_SHADOW_STRENGTH_INDEX] <= 0.001f) return
         val descriptor = MTLRenderPassDescriptor.renderPassDescriptor()
         descriptor.depthAttachment.apply {
-            texture = shadowMap
+            texture = target
             loadAction = MTLLoadActionClear
             storeAction = MTLStoreActionStore
             clearDepth = 1.0
@@ -505,6 +565,15 @@ internal class MetalSceneBackend private constructor(
     ) {
         val encoder = commandBuffer.renderCommandEncoderWithDescriptor(passDescriptor) ?: return
         encoder.setFrontFacingWinding(MTLWindingCounterClockwise)
+        encodeSceneContents(encoder, transparentBackground, shadowMap)
+        encoder.endEncoding()
+    }
+
+    private fun encodeSceneContents(
+        encoder: MTLRenderCommandEncoderProtocol,
+        transparentBackground: Boolean,
+        shadow: MTLTextureProtocol,
+    ) {
         if (!transparentBackground) {
         encoder.setRenderPipelineState(skyPipeline)
         encoder.setDepthStencilState(ignoringDepth)
@@ -515,7 +584,7 @@ internal class MetalSceneBackend private constructor(
 
         encoder.setVertexFloatArray(frameUniforms, BUFFER_FRAME)
         encoder.setFragmentFloatArray(frameUniforms, BUFFER_FRAME)
-        encoder.setFragmentTexture(shadowMap, TEXTURE_SHADOW)
+        encoder.setFragmentTexture(shadow, TEXTURE_SHADOW)
 
         encoder.setDepthStencilState(writingDepth)
         encoder.setRenderPipelineState(opaquePipeline)
@@ -533,7 +602,6 @@ internal class MetalSceneBackend private constructor(
             }
             encoder.encode(item)
         }
-        encoder.endEncoding()
     }
 
     private fun MTLRenderCommandEncoderProtocol.encode(item: DrawItem) {
@@ -683,12 +751,7 @@ internal class MetalSceneBackend private constructor(
                 return device.newDepthStencilStateWithDescriptor(descriptor)
             }
 
-            val shadowTextureDescriptor = MTLTextureDescriptor()
-            shadowTextureDescriptor.pixelFormat = MTLPixelFormatDepth32Float
-            shadowTextureDescriptor.width = SHADOW_MAP_SIZE
-            shadowTextureDescriptor.height = SHADOW_MAP_SIZE
-            shadowTextureDescriptor.usage = MTLTextureUsageRenderTarget or MTLTextureUsageShaderRead
-            shadowTextureDescriptor.storageMode = MTLStorageModePrivate
+            val shadowTextureDescriptor = shadowTextureDescriptor()
             val whiteDescriptor = MTLTextureDescriptor.texture2DDescriptorWithPixelFormat(
                 pixelFormat = MTLPixelFormatRGBA8Unorm,
                 width = 1uL,
@@ -833,3 +896,11 @@ private fun MTLRenderCommandEncoderProtocol.setFragmentFloatArray(data: FloatArr
 }
 
 private const val TEXTURED_FLASH_GLOW = 0.9f
+
+private fun shadowTextureDescriptor(): MTLTextureDescriptor = MTLTextureDescriptor().apply {
+    pixelFormat = MTLPixelFormatDepth32Float
+    width = SHADOW_MAP_SIZE
+    height = SHADOW_MAP_SIZE
+    usage = MTLTextureUsageRenderTarget or MTLTextureUsageShaderRead
+    storageMode = MTLStorageModePrivate
+}

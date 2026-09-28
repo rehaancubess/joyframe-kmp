@@ -1,4 +1,11 @@
+import io.github.rehaancubess.joyframe.FixedTimestep
 import io.github.rehaancubess.joyframe.GameSession
+import io.github.rehaancubess.joyframe.audio.SpatialMix
+import io.github.rehaancubess.joyframe.input.GamepadSeats
+import io.github.rehaancubess.joyframe.render.ChaseCamera
+import io.github.rehaancubess.joyframe.render.SplitLayout
+import io.github.rehaancubess.joyframe.render.math.Vec3
+import io.github.rehaancubess.joyframe.render.water.Whirlpool
 import io.github.rehaancubess.joyframe.audio.PcmSound
 import io.github.rehaancubess.joyframe.input.GamepadState
 import io.github.rehaancubess.joyframe.render.sceneAssets
@@ -22,5 +29,13 @@ class ConsumerTest {
         assertEquals(1f,session.step(0,GamepadState(leftStickY=1f)).input.movement.y)
         PcmSound.tone()
         session.close()
+    }
+    @Test fun alpha03ApisAreInThePublishedArtifact() {
+        assertTrue(ChaseCamera().desired(Vec3.ZERO,Vec3(1f,0f,0f)).eye.x < 0f)
+        assertEquals(2,FixedTimestep(.5f).advance(1f))
+        assertEquals(2,SplitLayout.panes(2,800,600).size)
+        assertEquals(0,GamepadSeats().occupied)
+        assertTrue(Whirlpool(0f,0f).influenceAt(0f,0f) > 0f)
+        assertTrue(SpatialMix.of(0f,0f,1f,0f,0f,100f,1000f).pan > 0f)
     }
 }
