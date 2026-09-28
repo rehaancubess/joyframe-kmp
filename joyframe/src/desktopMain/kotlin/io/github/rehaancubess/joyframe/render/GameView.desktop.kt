@@ -13,12 +13,13 @@ import org.lwjgl.opengl.awt.GLData
 import kotlin.math.roundToInt
 
 @Composable
-actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
-    SplitGameView(listOf(frame), modifier, active)
+actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions) {
+    SplitGameView(listOf(frame), modifier, active, options = options)
 }
 
 @Composable
-actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor, gapDp: Float) {
+actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor,
+                         gapDp: Float, options: GameViewOptions) {
     require(frames.size in 1..SplitLayout.MAX_PANES) { "SplitGameView needs 1 to ${SplitLayout.MAX_PANES} frames" }
     if (isMac) {
         MacGameView(frames, modifier, active, gutter, gapDp)

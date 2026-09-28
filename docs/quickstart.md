@@ -189,3 +189,31 @@ OffscreenRenderer().use { renderer ->
 
 `./gradlew :sample:captureDemo` uses this to render Lake Lab's reference stills and
 the frames of the README animation.
+
+## Smooth by default, and measured
+
+`GameView` and `SplitGameView` take `GameViewOptions`. The defaults are the source game's measured
+settings for phones; see [why.md](why.md) for the numbers.
+
+```kotlin
+GameView(frame, modifier)                                    // tuned defaults
+GameView(frame, modifier, options = GameViewOptions(renderScale = 1f))  // full scale, still capped
+GameView(frame, modifier, options = GameViewOptions.Full)    // every native pixel, native refresh
+
+val pacing = remember { FramePacing() }
+pacing.record(frameNanos)             // in the loop that advances your game
+Text(pacing.report.toString())        // "59.8 fps · 0.4% late · p99 16.7 ms · worst 33.3 ms"
+```
+
+Measure release builds: debug builds are dominated by JIT and debuggable overhead.
+
+## Tilt steering
+
+```kotlin
+DeviceTilt.start()                    // from a tap: Safari asks for motion permission then
+session.input.tiltSteer = DeviceTilt.steer   // each frame; adds to step.input.drive.x
+DeviceTilt.recenter()                 // take a new neutral
+DeviceTilt.stop()
+```
+
+Check `DeviceTilt.available` before offering it. Android needs `JoyframeAndroid.initialize(context)`.

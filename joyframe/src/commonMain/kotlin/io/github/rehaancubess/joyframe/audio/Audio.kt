@@ -219,7 +219,8 @@ class MusicPlayer(track: PcmSound, volume: Float = .5f) {
         }
         val from = level
         fade = scope.launch {
-            val steps = (seconds * 30f).toInt().coerceAtLeast(1)
+            // 20 steps a second is smooth to the ear and keeps native volume calls rare.
+            val steps = (seconds * 20f).toInt().coerceAtLeast(1)
             for (step in 1..steps) {
                 delay((seconds * 1000f / steps).toLong().coerceAtLeast(1L))
                 level = from + (to - from) * step / steps

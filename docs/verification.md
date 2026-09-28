@@ -1,5 +1,20 @@
 # Verification
 
+## Alpha04 — smooth-by-default views and tilt
+
+Local checks on 28 September 2026, macOS / JDK 17 / Kotlin 2.3.20:
+
+- 51 library desktop tests passed (new: render sizing against the game's measured iPhone case,
+  frame pacing windows and late-frame counting, tilt math, neutral/flip/wrap handling, tilt into
+  drive). The library compiled for desktop, Android, Wasm and iOS simulator; the sample built for
+  desktop, browser and as an Android APK.
+- iOS simulator: Lake Lab ran with the capped Metal drawable in Lake and Split screen, and the new
+  diagnostics read 60.0 fps, 0.0% late, worst 16.6 ms in split screen (simulator, not a device
+  benchmark). The simulator stand-in pad filter was added after that run and not re-checked on screen.
+- The Android render loop, 60 Hz hold and sustained-mode code are ported from the source game,
+  where they were measured on a Snapdragon 730G phone. **This library build has not run on an
+  Android device yet**, and tilt has not run on any device. See `device-testing.md`.
+
 ## Alpha03 — camera, split screen, controllers, weather and sound
 
 Local checks on 28 September 2026, macOS / JDK 17 / Kotlin 2.3.20:

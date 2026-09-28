@@ -86,6 +86,13 @@ actual object PlatformGamepad {
         }
         return GCController.controllers()
             .filterIsInstance<GCController>()
-            .filter { it.extendedGamepad != null }
+            .filter { it.extendedGamepad != null && !it.isSimulatorStandIn() }
     }
+
+    private val runningInSimulator: Boolean =
+        platform.Foundation.NSProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] != null
+
+    /** The iOS Simulator always offers a synthetic MFi "Gamepad"; real pads it forwards keep their names. */
+    private fun GCController.isSimulatorStandIn(): Boolean =
+        runningInSimulator && vendorName == "Gamepad" && productCategory == "MFi"
 }

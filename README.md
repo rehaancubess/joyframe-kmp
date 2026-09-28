@@ -5,10 +5,19 @@ audio from one `commonMain`, on desktop, Android, iOS and the browser.
 
 ![Lake Lab: a boat on a chase camera passes a whirlpool, then two-player split screen, then snow](docs/media/lake-lab.gif)
 
-**Experimental 0.1.0-alpha03.** Extracted from a shipping arcade boat game, but this
+**Experimental 0.1.0-alpha04.** Extracted from a shipping arcade boat game, but this
 standalone library is new: the original app's device coverage does not transfer
 automatically. Not yet on Maven Central. **Try it in the browser:**
 [rehaancubess.github.io/joyframe-kmp](https://rehaancubess.github.io/joyframe-kmp/).
+
+## Why it exists
+
+We built an arcade boat game in Kotlin Multiplatform and spent most of our time making it run
+smoothly everywhere. Sound alone cut an iPhone 15 Plus from 59.5 to 53.5 fps with 9% late frames,
+until every native audio call moved off the game thread. A mid-range Android phone reported a
+steady 60 while the game ran at 39, with frames up to 350 ms. Couch play meant split screen, four
+different controller stacks, phones as controllers and tilt steering, each behaving differently per
+platform. Joyframe is those fixes, measured and pulled out of the game. [The full story](docs/why.md).
 
 ## What is included
 
@@ -23,6 +32,12 @@ automatically. Not yet on Maven Central. **Try it in the browser:**
 - `ModelTurntable` for character-select or store screens; `OffscreenRenderer` on macOS
   for screenshots and GIFs.
 
+**Smooth by default**
+- `GameViewOptions`: the game's measured defaults - 0.8 render scale on Android, a 1920-pixel /
+  2.07-megapixel cap on phones and browsers, 60 Hz on 120 Hz Android panels, sustained performance
+  mode - and a decoupled Android render thread.
+- `FramePacing`: fps, late frames, p95/p99 and worst frame from the loop that advances your game.
+
 **Gameplay helpers**
 - `FixedTimestep`: constant-rate physics with interpolated drawing.
 - `Buoyancy.pose`: hulls pitch, roll and heave on the same swell the water draws.
@@ -34,6 +49,7 @@ automatically. Not yet on Maven Central. **Try it in the browser:**
 - Every connected controller (`PlatformGamepad.pollAll()`), with all buttons, both
   sticks and both triggers, and stable local-player `GamepadSeats`.
 - `KeyBindings.Wasd` / `KeyBindings.Arrows` for two players on one keyboard.
+- `DeviceTilt`: steer by rolling the phone, on Android, iOS and phone browsers.
 
 **Audio**
 - Scene-owned `AudioPlayer` banks with readiness/failure state and clean disposal.
@@ -91,7 +107,7 @@ To sail your own model locally, pass `-Pjoyframe.demoBoat=path/to/boat.glb` (bow
 Enable `mavenLocal()` in your repositories and add to `commonMain`:
 
 ```kotlin
-implementation("io.github.rehaancubess:joyframe:0.1.0-alpha03")
+implementation("io.github.rehaancubess:joyframe:0.1.0-alpha04")
 ```
 
 These coordinates are a **local build**, not a published Central release. iOS

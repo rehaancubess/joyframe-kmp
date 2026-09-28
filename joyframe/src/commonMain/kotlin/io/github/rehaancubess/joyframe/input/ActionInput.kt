@@ -54,6 +54,8 @@ class ActionInput(val bindings: KeyBindings = KeyBindings.Default) {
     private val pending = mutableSetOf<GameAction>()
     private var previous = emptySet<GameAction>()
     var touchMovement = Movement()
+    /** Steering from [DeviceTilt.steer]; added to [ActionFrame.drive] x. */
+    var tiltSteer = 0f
     var options = GamepadOptions()
     fun key(key: Key, down: Boolean): Boolean {
         if (key !in bindings.all) return false
@@ -67,7 +69,7 @@ class ActionInput(val bindings: KeyBindings = KeyBindings.Default) {
         return true
     }
     fun touch(action: GameAction, down: Boolean) { if (down) { if(touch.add(action)) pending.add(action) } else touch.remove(action) }
-    fun clear() { keys.clear(); touch.clear(); pending.clear(); touchMovement = Movement(); previous = emptySet() }
+    fun clear() { keys.clear(); touch.clear(); pending.clear(); touchMovement = Movement(); tiltSteer = 0f; previous = emptySet() }
     fun poll(pad: GamepadState? = null): ActionFrame {
         fun down(set: Set<Key>) = set.any { it in keys }
         fun axis(v: Float, invert: Boolean) = GamepadMapping.axis(v,options.deadzone,options.sensitivity,invert)
@@ -81,7 +83,7 @@ class ActionInput(val bindings: KeyBindings = KeyBindings.Default) {
         val y = keyY + touchMovement.y.finite() + py + dpadY
         val length = sqrt(x*x+y*y).coerceAtLeast(1f)
         val triggers = (pad?.rightTrigger ?: 0f).trigger() - (pad?.leftTrigger ?: 0f).trigger()
-        val drive = Movement(x.coerceIn(-1f,1f), (y + triggers).coerceIn(-1f,1f))
+        val drive = Movement((x + tiltSteer.finite()).coerceIn(-1f,1f), (y + triggers).coerceIn(-1f,1f))
         val held = touch.toMutableSet()
         if(down(bindings.interact) || pad?.action == true) held += GameAction.Interact
         if(down(bindings.pause) || pad?.pause == true) held += GameAction.Pause

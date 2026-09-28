@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.rehaancubess.joyframe.FixedTimestep
+import io.github.rehaancubess.joyframe.FramePacing
 import io.github.rehaancubess.joyframe.GameSession
 import io.github.rehaancubess.joyframe.audio.*
 import io.github.rehaancubess.joyframe.input.*
@@ -73,6 +74,7 @@ fun Playground() {
     val second = remember { ActionInput(KeyBindings.Arrows) }
     val seats = remember { GamepadSeats(2) }
     val fixed = remember { FixedTimestep() }
+    val pacing = remember { FramePacing() }
     val boats = remember { listOf(BoatMotion(), BoatMotion(-260f,260f)) }
     val chases = remember { listOf(ChaseCamera(), ChaseCamera()) }
     val focus = remember { FocusRequester() }
@@ -85,13 +87,15 @@ fun Playground() {
     var chase by remember { mutableStateOf(false) }
     var look by remember { mutableStateOf(LakeLook()) }
     var music by remember { mutableStateOf(false) }
+    val tiltAvailable = remember { DeviceTilt.available }
+    var tilt by remember { mutableStateOf(false) }
     var waves by remember { mutableStateOf(1f) }
     var zoom by remember { mutableStateOf(1.12f) }
     var deadzone by remember { mutableStateOf(.15f) }
     var paint by remember { mutableStateOf("hull") }
     var spin by remember { mutableStateOf(0f) }
     var controllers by remember { mutableStateOf("No controller") }
-    var frameMs by remember { mutableStateOf(0f) }
+    var smoothness by remember { mutableStateOf("Measuring…") }
     var alpha by remember { mutableStateOf(1f) }
     var cameras by remember { mutableStateOf(listOf(overviewCamera(1.12f))) }
     val baseWater = remember { lagoonWater() }
@@ -115,9 +119,16 @@ fun Playground() {
     val latest by rememberUpdatedState(Triple(mode,chase,look))
     val latestMuted by rememberUpdatedState(muted)
     val latestZoom by rememberUpdatedState(zoom)
+    val latestTilt by rememberUpdatedState(tilt)
     DisposableEffect(Unit) { onDispose {
-        session.close(); audio.close(); if(soundtrack.isInitialized()) soundtrack.value.close()
+        session.close(); audio.close(); DeviceTilt.stop(); if(soundtrack.isInitialized()) soundtrack.value.close()
     } }
+    // Called from the switch's tap, which browsers need before they grant motion access.
+    fun setTilt(on: Boolean) {
+        tilt = on
+        if(on) { DeviceTilt.start(); if(!chase) { chase = true; chases.forEach { it.cut() } } }
+        else { DeviceTilt.stop(); session.input.tiltSteer = 0f }
+    }
     SideEffect {
         session.foreground = window.isWindowFocused
         session.input.options = GamepadOptions(deadzone=deadzone)
@@ -134,9 +145,7 @@ fun Playground() {
         // BoxWithConstraints subcomposes the controls during layout; focus only after that frame.
         withFrameNanos { }
         focus.requestFocus()
-        var last: Long? = null
         var frames = 0
-        var duration = 0f
         var northWasDown = false
         var nextBell = 2f
         while(isActive) {
@@ -145,6 +154,7 @@ fun Playground() {
             val split = currentMode == LabMode.Split
             session.foreground = window.isWindowFocused
             seats.update(PlatformGamepad.pollAll())
+            if(latestTilt) session.input.tiltSteer = DeviceTilt.steer
             val step = session.step(now,seats.state(0))
             val two = second.poll(seats.state(1))
             if(split && GameAction.Pause in two.pressed) session.paused = !session.paused
@@ -152,7 +162,12 @@ fun Playground() {
             if(north && !northWasDown && currentMode == LabMode.Lake) { chase=!chase; chases.forEach { it.cut() } }
             northWasDown = north
             val steering = if(split || chasing) Steering.Drive else Steering.Map
-            fun controls(frame: ActionFrame) = if(steering == Steering.Drive) frame.drive else frame.movement
+            fun controls(frame: ActionFrame) = when {
+                steering != Steering.Drive -> frame.movement
+                // Tilt drives forward on its own, as in the game; pulling the stick back brakes.
+                latestTilt && frame === step.input && frame.drive.y >= 0f -> Movement(frame.drive.x, maxOf(frame.drive.y,.85f))
+                else -> frame.drive
+            }
             // One player: the arrow keys and the second controller also steer boat one.
             val one = if(split) controls(step.input) else controls(step.input).plus(controls(two))
             val pools = if(currentLook.whirlpools) lakePools else emptyList()
@@ -185,13 +200,13 @@ fun Playground() {
             paused = session.paused
             audio.setForeground(session.active && !latestMuted)
             seconds = step.seconds; revision++
-            last?.let { duration += (now-it)/1_000_000f; frames++ }
-            if(frames >= 30) {
-                frameMs=duration/frames; frames=0; duration=0f
+            if(session.active) pacing.record(now) else pacing.reset()
+            if(++frames >= 30) {
+                frames=0
+                smoothness=pacing.report.toString()
                 val pads = PlatformGamepad.pollAll()
                 controllers = when(pads.size) { 0 -> "No controller"; 1 -> pads[0].name; else -> "${pads.size} controllers: ${pads.joinToString { it.name }}" }
             }
-            last = now
         }
     }
     @Suppress("UNUSED_VARIABLE") val frameRevision = revision
@@ -241,6 +256,7 @@ fun Playground() {
                                     Text(when {
                                         split -> "P1: WASD + Space or controller 1\nP2: arrows + Enter or controller 2"
                                         mode == LabMode.Hangar -> "Pick a paint and turn the boat"
+                                        tilt -> "Tilt the phone to steer · stick back to brake\nRecenter below if it drifts"
                                         chase -> "W/S or triggers: throttle · A/D: steer\nC or controller Y: overview"
                                         else -> "WASD / arrows / left stick\nC or controller Y: chase camera"
                                     },fontSize=11.sp)
@@ -276,7 +292,11 @@ fun Playground() {
                                 Setting("Turn",spin,-3.14f..3.14f) { spin=it }
                             } else {
                                 if(mode == LabMode.Lake) Row(verticalAlignment=Alignment.CenterVertically) {
-                                    Switch(chase,{ toggleCamera() }); Text("Chase camera (as in the game)",fontSize=13.sp)
+                                    Switch(chase,{ if(tilt) setTilt(false); toggleCamera() }); Text("Chase camera (as in the game)",fontSize=13.sp)
+                                }
+                                if(tiltAvailable) Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                    Switch(tilt,{ setTilt(it) }); Text("Tilt to steer (gyro)",fontSize=13.sp,modifier=Modifier.weight(1f))
+                                    if(tilt) OutlinedButton(onClick={ DeviceTilt.recenter() }) { Text("Recenter",fontSize=12.sp) }
                                 }
                                 Row(verticalAlignment=Alignment.CenterVertically) {
                                     Switch(look.whirlpools,{ look=look.copy(whirlpools=it) }); Text("Whirlpools",fontSize=13.sp)
@@ -305,7 +325,7 @@ fun Playground() {
                             Text("Excerpt • full working source in sample/",fontSize=10.sp,color=Color(0xffabc6cc))
                             Divider()
                             Text("DIAGNOSTICS",color=MaterialTheme.colors.primary,fontSize=12.sp)
-                            Text("${frameMs.toInt()} ms / UI frame (not GPU timing)\n$controllers\nAudio: $audioStatus\n" +
+                            Text("$smoothness\n(game loop, last 2 s; late = over 25 ms)\n$controllers\nAudio: $audioStatus\n" +
                                 "Physics: fixed 60 Hz, ${fixed.steps} steps\n36 procedural trees\n$modelStatus",fontSize=11.sp,lineHeight=17.sp)
                             OutlinedButton(onClick={ focus.requestFocus() }) { Text("Focus keyboard controls") }
                         }

@@ -13,6 +13,8 @@
 | Several controllers | Yes (GLFW / GameController) | Yes, by device id | Yes | Yes |
 | Stereo pan | OpenAL position (macOS); Java Sound PAN/BALANCE if the line offers it | SoundPool left/right volume | `AVAudioPlayer.pan` | `StereoPannerNode` where available |
 | Offscreen rendering | macOS only | No | No | No |
+| Tilt steering | No | Gravity sensor | Core Motion | `devicemotion` on phones (permission on iOS Safari) |
+| `GameViewOptions` | Ignored (macOS offscreen caps at 1200 px) | Scale, cap, 60 Hz, sustained mode | Drawable cap and scale | Buffer cap and scale |
 
 This table describes implementations, not a hardware-certification matrix.
 See `verification.md` for checks actually performed on this extraction.
@@ -89,6 +91,12 @@ and Wasm entry point demonstrate the required arrangement.
 `SplitGameView(frames)` draws up to four frames into one surface. Every frame should
 share one `GpuSceneAssets` (cache key); different assets per pane re-upload geometry
 each pane. The two-pane split follows the long edge (side by side in landscape).
+
+On Android the GL thread runs continuously and draws the newest frame composition published,
+waiting up to 50 ms for a new one, so composition never pumps the renderer. The surface buffer is
+sized from `GameViewOptions` and upscaled by the compositor; touch stays at full resolution.
+While a view is on screen it asks for the panel's 60 Hz mode and sustained performance mode where
+supported, and restores both when it leaves. Turn these off with the options if your game owns them.
 
 `GameView` displays frames; your coroutine or simulation owns updates. iOS uses
 Metal's display loop; desktop uses Compose frame timing and browser uses native requestAnimationFrame; Android

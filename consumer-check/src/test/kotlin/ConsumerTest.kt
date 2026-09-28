@@ -38,4 +38,9 @@ class ConsumerTest {
         assertTrue(Whirlpool(0f,0f).influenceAt(0f,0f) > 0f)
         assertTrue(SpatialMix.of(0f,0f,1f,0f,0f,100f,1000f).pan > 0f)
     }
+    @Test fun alpha04SmoothnessAndTiltApisArePublished() {
+        assertEquals(1920,io.github.rehaancubess.joyframe.render.GameViewOptions(renderScale=1f).renderSize(2796,1290).first)
+        assertEquals(0,io.github.rehaancubess.joyframe.FramePacing().report.frames)
+        assertEquals(0f,io.github.rehaancubess.joyframe.input.TiltMath.steer(0f,0f,26f))
+    }
 }

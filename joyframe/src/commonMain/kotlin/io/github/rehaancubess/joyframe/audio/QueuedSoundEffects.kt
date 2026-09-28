@@ -67,7 +67,10 @@ internal class QueuedSoundEffects(
                     enginePlaying = wantsEngine
                 }
                 val wantedVolume = Float.fromBits(loopVolume.load())
-                if (wantedVolume >= 0f && wantedVolume != appliedLoopVolume) {
+                // Inaudible steps are skipped: native volume setters are not free (the source game
+                // lost frames to per-frame AVAudioPlayer calls), so fades touch them sparingly.
+                if (wantedVolume >= 0f && (kotlin.math.abs(wantedVolume - appliedLoopVolume) >= .005f ||
+                        (wantedVolume == 0f) != (appliedLoopVolume == 0f))) {
                     loopVolumeNow(wantedVolume)
                     appliedLoopVolume = wantedVolume
                 }

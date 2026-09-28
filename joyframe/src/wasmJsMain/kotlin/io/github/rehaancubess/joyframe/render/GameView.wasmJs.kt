@@ -18,12 +18,13 @@ import kotlin.math.roundToInt
  * The DOM canvas occupies the viewport rectangle; Compose overlays on top are not supported yet.
  */
 @Composable
-actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
-    SplitGameView(listOf(frame), modifier, active)
+actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions) {
+    SplitGameView(listOf(frame), modifier, active, options = options)
 }
 
 @Composable
-actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor, gapDp: Float) {
+actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor,
+                         gapDp: Float, options: GameViewOptions) {
     require(frames.size in 1..SplitLayout.MAX_PANES) { "SplitGameView needs 1 to ${SplitLayout.MAX_PANES} frames" }
     val canvas = remember { (document.createElement("canvas") as HTMLCanvasElement).apply {
         style.position = "fixed"
@@ -36,6 +37,7 @@ actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active
     val latest = rememberUpdatedState(frames)
     val latestGutter = rememberUpdatedState(gutter)
     val latestGap = rememberUpdatedState(gapDp)
+    val latestOptions = rememberUpdatedState(options)
     val running = rememberUpdatedState(active)
     var failure by remember { mutableStateOf<String?>(null) }
     DisposableEffect(canvas) {
@@ -56,7 +58,8 @@ actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active
                     val current=latest.value
                     if(running.value || current != previous || width != canvas.width || height != canvas.height) {
                         width=canvas.width; height=canvas.height
-                        val gap = (latestGap.value * window.devicePixelRatio).roundToInt()
+                        val native = canvas.getBoundingClientRect().width * window.devicePixelRatio
+                        val gap = (latestGap.value * window.devicePixelRatio * (width / native.coerceAtLeast(1.0))).roundToInt()
                         backend?.renderPanes(current,width.coerceAtLeast(1),height.coerceAtLeast(1),latestGutter.value,gap)
                         if(previous==null) {
                             check(api.getError()==0) { "WebGL reported an error while drawing the first frame" }
@@ -87,7 +90,9 @@ actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active
         canvas.style.top = "${position.y / ratio}px"
         canvas.style.width = "${it.size.width / ratio}px"
         canvas.style.height = "${it.size.height / ratio}px"
-        if (canvas.width != it.size.width) canvas.width = it.size.width
-        if (canvas.height != it.size.height) canvas.height = it.size.height
+        // The buffer may be smaller than the element (options); CSS stretches it to fill.
+        val (bufferWidth, bufferHeight) = latestOptions.value.renderSize(it.size.width, it.size.height)
+        if (canvas.width != bufferWidth) canvas.width = bufferWidth
+        if (canvas.height != bufferHeight) canvas.height = bufferHeight
     }) { failure?.let { BasicText("Renderer unavailable: $it") } }
 }

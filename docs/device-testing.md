@@ -1,4 +1,4 @@
-# Device testing for 0.1.0-alpha03
+# Device testing for 0.1.0-alpha04
 
 Nothing below has been run on a physical phone, tablet or controller yet. Record
 the device, OS version, controller model and the result of each step in
@@ -38,6 +38,13 @@ the device, OS version, controller model and the result of each step in
 ## Hangar
 
 11. The boat spins slowly; paint and turn change it; leaving and re-entering works.
+
+## Smoothness and tilt
+
+13. Diagnostics shows fps, late % and worst frame. Note them for Lake (clear), Lake with snow,
+    and Split screen, on a release-like build where possible.
+14. On a phone, turn on **Tilt to steer**: rolling right turns right, the boat drives forward
+    on its own, and Recenter takes a new neutral. In a browser on iPhone, a permission prompt appears.
 
 ## Every mode
 

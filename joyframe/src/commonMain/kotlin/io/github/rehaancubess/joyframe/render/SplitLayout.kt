@@ -63,4 +63,5 @@ expect fun SplitGameView(
     active: Boolean = true,
     gutter: PackedColor = SplitLayout.DefaultGutter,
     gapDp: Float = 3f,
+    options: GameViewOptions = GameViewOptions.Default,
 )

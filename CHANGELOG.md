@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0-alpha04 — smooth by default, tilt steering
+
+- `GameViewOptions` on `GameView`/`SplitGameView`, with the source game's measured defaults:
+  0.8 render scale on Android, 1920-pixel / 2.07 MP cap on iOS and browsers, 60 Hz on high-refresh
+  Android panels, sustained performance mode. `GameViewOptions.Full` renders every native pixel.
+- Android `GameView` now draws on a free-running GL thread from a frame mailbox instead of being
+  pumped by composition (the change that took the game from 39 to 60 fps on a mid-range phone).
+- iOS sizes the Metal drawable explicitly; browsers size the WebGL buffer from the options.
+- `FramePacing`/`FramePacingReport`: fps, late-frame %, p95/p99 and worst interval. Lake Lab shows it.
+- `DeviceTilt`/`TiltMath` and `ActionInput.tiltSteer`: roll-to-steer from gravity on Android, iOS and
+  phone browsers; Lake Lab's "Tilt to steer".
+- Audio: loop-volume changes under 0.005 are skipped and `MusicPlayer` fades step at 20 Hz.
+- iOS ignores the Simulator's synthetic "Gamepad" stand-in, as the source game does.
+- `docs/why.md`: the measured problems behind the library.
+
 ## 0.1.0-alpha03 — the game's feel, couch play and sound (local, not yet released)
 
 - `ChaseCamera`: the source game's damped chase framing, speed-widened lens, cuts and shake.
