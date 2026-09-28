@@ -14,9 +14,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
-      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      # Hosted runners ship the Android SDK; install only what this build needs.
+      - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;35.0.0' > /dev/null
       - run: ./gradlew :joyframe:desktopTest :sample:desktopTest :sample-android:assembleDebug :sample:compileKotlinWasmJs :sample:compileKotlinIosSimulatorArm64 :sample:compileKotlinIosArm64 --stacktrace
       - run: ./gradlew :joyframe:publishAllPublicationsToStagingRepository
       - run: ./gradlew -p consumer-check test

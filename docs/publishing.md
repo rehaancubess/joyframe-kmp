@@ -6,9 +6,11 @@ available from `mavenCentral()`.
 
 ## Live browser demo (GitHub Pages)
 
-`.github/workflows/pages.yml` builds the Lake Lab browser distribution on every push
-to `main` and deploys it to `https://rehaancubess.github.io/joyframe-kmp/`. One-time
-owner step: in the repository's Settings → Pages, set **Source** to **GitHub Actions**.
+`.github/workflows/pages.yml` builds the Lake Lab browser distribution and deploys it
+to `https://rehaancubess.github.io/joyframe-kmp/`. One-time owner step: in the
+repository's Settings → Pages, set **Source** to **GitHub Actions**, then run the
+workflow from the Actions tab. It is manual-only until Pages is enabled; add a
+`push` trigger afterwards to deploy on every push to `main`.
 The workflow never passes `-Pjoyframe.demoBoat`, so the site always uses the
 procedural boat. Check the page on desktop and a phone after the first deploy.
 

@@ -1,7 +1,7 @@
 name: Deploy Lake Lab to GitHub Pages
+# Manual until Pages is enabled (Settings → Pages → Source: GitHub Actions).
+# Then add `push: branches: [main]` here to deploy on every push.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,9 +20,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
-      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      # Hosted runners ship the Android SDK; install only what this build needs.
+      - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;35.0.0' > /dev/null
       # Procedural boat only: no -Pjoyframe.demoBoat, so no local model can reach the site.
       - run: ./gradlew :sample:wasmJsBrowserDistribution --stacktrace
       - uses: actions/upload-pages-artifact@v3
