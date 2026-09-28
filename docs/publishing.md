@@ -51,6 +51,8 @@ all iOS variants. Never upload a repository archive containing build directories
 Do not paste credentials into an issue, chat, command-line argument or public log.
 The library uses the Vanniktech publishing plugin recommended by Kotlin's guide.
 
+First Central release: 0.1.0-alpha04, published 28 September 2026 through the workflow below.
+
 ## Release from GitHub (recommended)
 
 The four secrets above are stored on the repository (GitHub shows their names in upper case).

@@ -1,6 +1,6 @@
 # From an empty scene to a game loop
 
-Use the artifact from the README. The alpha is locally staged, not yet on Central.
+Add `io.github.rehaancubess:joyframe:0.1.0-alpha04` from Maven Central to `commonMain` (see the README).
 
 ```kotlin
 import io.github.rehaancubess.joyframe.render.*

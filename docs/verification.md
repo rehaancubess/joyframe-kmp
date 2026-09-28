@@ -2,6 +2,11 @@
 
 ## Alpha04 — smooth-by-default views and tilt
 
+- **Maven Central:** released through the GitHub release workflow (signed on a macOS runner;
+  12 of 12 components validated) and published on 28 September 2026. About 20 minutes later a
+  separate project whose only repositories were Maven Central and Google resolved
+  `io.github.rehaancubess:joyframe:0.1.0-alpha04` (desktop variant) with `--refresh-dependencies`
+  and passed its 3 tests.
 Local checks on 28 September 2026, macOS / JDK 17 / Kotlin 2.3.20:
 
 - 51 library desktop tests passed (new: render sizing against the game's measured iPhone case,

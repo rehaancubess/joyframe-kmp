@@ -1,5 +1,7 @@
 # Joyframe KMP
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.rehaancubess/joyframe)](https://central.sonatype.com/artifact/io.github.rehaancubess/joyframe)
+
 A Kotlin Multiplatform toolkit for 3D games: rendering, cameras, controllers, split screen,
 audio and smoothness fixes from one `commonMain`, on desktop, Android, iOS and the browser.
 It came out of a boat game, but almost nothing in it is about boats.
@@ -8,7 +10,7 @@ It came out of a boat game, but almost nothing in it is about boats.
 
 **Experimental 0.1.0-alpha04.** Extracted from a shipping arcade boat game, but this
 standalone library is new: the original app's device coverage does not transfer
-automatically. Not yet on Maven Central.
+automatically. Available on [Maven Central](https://central.sonatype.com/artifact/io.github.rehaancubess/joyframe).
 
 ## Why it exists
 
@@ -145,18 +147,14 @@ To sail your own model locally, pass `-Pjoyframe.demoBoat=path/to/boat.glb` (bow
 
 ## Use it
 
-```sh
-./gradlew :joyframe:publishToMavenLocal
-```
-
-Enable `mavenLocal()` in your repositories and add to `commonMain`:
+Joyframe is on Maven Central. With `mavenCentral()` in your repositories, add to `commonMain`:
 
 ```kotlin
 implementation("io.github.rehaancubess:joyframe:0.1.0-alpha04")
 ```
 
-These coordinates are a **local build**, not a published Central release. iOS
-artifacts must be built on macOS with Xcode. The browser target is Kotlin/Wasm.
+iOS apps build on macOS with Xcode. The browser target is Kotlin/Wasm. To try unreleased
+changes from this repository, run `./gradlew :joyframe:publishToMavenLocal` and add `mavenLocal()`.
 
 ```kotlin
 val session = GameSession()

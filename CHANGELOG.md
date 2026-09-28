@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-alpha04 — smooth by default, tilt steering
+## 0.1.0-alpha04 — smooth by default, tilt steering (Maven Central, 28 September 2026)
 
 - `GameViewOptions` on `GameView`/`SplitGameView`, with the source game's measured defaults:
   0.8 render scale on Android, 1920-pixel / 2.07 MP cap on iOS and browsers, 60 Hz on high-refresh
