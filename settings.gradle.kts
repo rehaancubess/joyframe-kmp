@@ -2,7 +2,10 @@ pluginManagement {
     repositories { google(); mavenCentral(); gradlePluginPortal() }
 }
 dependencyResolutionManagement {
-    repositories { google(); mavenCentral() }
+    repositories {
+        if (providers.gradleProperty("joyframe.usePublished").orNull == "true") maven { url=uri("build/staging") }
+        google(); mavenCentral()
+    }
 }
 rootProject.name = "joyframe-kmp"
-include(":joyframe", ":sample")
+include(":joyframe", ":sample", ":sample-android")

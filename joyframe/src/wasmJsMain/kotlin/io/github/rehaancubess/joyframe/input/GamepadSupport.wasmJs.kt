@@ -47,7 +47,7 @@ actual object PlatformGamepad {
                 confirm = south,
                 cancel = east,
                 leftStickX = horizontal,
-                leftStickY = axis(pad, AXIS_LEFT_Y),
+                leftStickY = -axis(pad, AXIS_LEFT_Y),
             ),
         )
     }
@@ -63,7 +63,7 @@ actual object PlatformGamepad {
             name = gamepadId(pad),
             detail = "Connected",
             leftStickX = axis(pad, AXIS_LEFT_X),
-            leftStickY = axis(pad, AXIS_LEFT_Y),
+            leftStickY = -axis(pad, AXIS_LEFT_Y),
         )
     }
 

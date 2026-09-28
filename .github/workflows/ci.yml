@@ -17,4 +17,7 @@ jobs:
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
-      - run: ./gradlew :joyframe:desktopTest :sample:compileKotlinDesktop :joyframe:compileDebugKotlinAndroid :joyframe:compileKotlinWasmJs :joyframe:compileKotlinIosSimulatorArm64 :joyframe:compileKotlinIosArm64 --stacktrace
+      - run: ./gradlew :joyframe:desktopTest :sample:desktopTest :sample-android:assembleDebug :sample:compileKotlinWasmJs :sample:compileKotlinIosSimulatorArm64 :sample:compileKotlinIosArm64 --stacktrace
+      - run: ./gradlew :joyframe:publishAllPublicationsToStagingRepository
+      - run: ./gradlew -p consumer-check test
+      - run: ./gradlew :sample:compileKotlinDesktop -Pjoyframe.usePublished=true

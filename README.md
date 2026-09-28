@@ -2,7 +2,7 @@
 
 A Kotlin Multiplatform game toolkit with rendering, audio and controller support.
 
-**Experimental 0.1.0-alpha01.** One library, clean subsystem packages. Extracted
+**Experimental 0.1.0-alpha02.** One library, clean subsystem packages. Extracted
 from a real game, but this standalone integration is new: do not assume the
 original app's device coverage transfers automatically. Not yet on Maven Central.
 
@@ -14,9 +14,12 @@ original app's device coverage transfers automatically. Not yet on Maven Central
   and matching CPU water-height/slope queries.
 - First-controller detection and a documented arcade mapping, deadzones and
   best-effort rumble. No multi-controller/raw-all-buttons API yet.
-- Your own PCM sounds, preloaded playback, bounded native cue queues, a single
-  optional loop and a small tone generator. No spatial audio or streaming music.
-- A frame clock and an asset-free playground. You own the game loop and rules.
+- Scene builders and procedural boxes, cones and water grids alongside the low-level API.
+- Shared keyboard/touch/controller actions and a pause-safe `GameSession`.
+- Scene-owned `AudioPlayer` banks with readiness/failure state, PCM16 WAV loading,
+  bounded cue queues and resource disposal. No spatial audio or streaming music.
+- Lake Lab: an asset-free boat scene with editable water, camera and lighting.
+  You own the game loop and rules; no private app assets are required.
 
 No game assets, accounts, server, analytics, purchases or backend credentials are
 included. This is a toolkit, not a complete engine or editor.
@@ -31,9 +34,15 @@ export ANDROID_HOME=/path/to/android-sdk
 ./gradlew :sample:run
 ```
 
-The playground displays a rotatable triangle. Use **Rotate**, **Play sound**,
-**Pause**, or connect a controller and move its left stick. RB / the west face
-button plays a cue. No external models or sound files need downloading.
+Lake Lab contains square water, 36 border trees and a movable boat. Drag the
+stick, use WASD/arrows, or connect a controller and move its left stick. Space,
+RB/west or **Horn** plays a generated cue. Pause/reset, mute, and adjust wave
+strength, camera distance, sunlight and controller deadzone. The code panel
+explains the setup; diagnostics report UI timing (not GPU frame time) and audio state.
+
+Browser: `./gradlew :sample:wasmJsBrowserDevelopmentRun`.
+Android: `./gradlew :sample-android:assembleDebug`.
+See [sample hosts and test checklist](docs/showcase.md), including the iOS framework entry point.
 
 See [the complete sample](sample/src/commonMain/kotlin/example/Playground.kt).
 
@@ -46,7 +55,7 @@ See [the complete sample](sample/src/commonMain/kotlin/example/Playground.kt).
 Then enable `mavenLocal()` in your app's repositories and add to `commonMain`:
 
 ```kotlin
-implementation("io.github.rehaancubess:joyframe:0.1.0-alpha01")
+implementation("io.github.rehaancubess:joyframe:0.1.0-alpha02")
 ```
 
 These coordinates are a **local development build**, not a published Central
@@ -57,14 +66,19 @@ Kotlin/Wasm, not Kotlin/JS.
 
 ```kotlin
 val sound = SoundId("jump")
-Audio.prepare(mapOf(sound to PcmSound.tone())) // once, at startup
-Audio.play(sound)
+val audio = AudioPlayer(mapOf(sound to PcmSound.tone()))
+// audio.status: Loading / AwaitingGesture / Ready / Failed / Closed
+audio.play(sound)
 
-val controller = PlatformGamepad.poll() // once per frame
-val x = controller?.horizontal ?: 0f
+val session = GameSession()
+val step = session.step(frameNanos, PlatformGamepad.poll())
+val movement = step.input.movement // normalized XY; positive Y = forward
 
 // Inside Compose, using a scene you build from your own assets:
 GameView(frame, Modifier.fillMaxSize(), active = !paused)
+// When leaving the scene:
+audio.close()
+session.close()
 ```
 
 Imports are under `io.github.rehaancubess.joyframe`: `audio`, `input`, `render`,
@@ -73,7 +87,10 @@ Imports are under `io.github.rehaancubess.joyframe`: `audio`, `input`, `render`,
 On Android initialize `JoyframeAndroid` with the application context before
 preparing audio, and forward controller events from the Activity. Browser audio
 requires a user gesture. Read [platform setup and limitations](docs/platforms.md)
-before integrating. The library does not automatically pause your simulation.
+before integrating. Feed host foreground state into `session.foreground`, and
+pause rendering/audio with it. The library does not install an Android Activity observer.
+
+For a complete scene-builder example, see [the quickstart](docs/quickstart.md).
 
 ## Development
 
@@ -82,6 +99,10 @@ before integrating. The library does not automatically pause your simulation.
 ./gradlew :joyframe:compileDebugKotlinAndroid :joyframe:compileKotlinWasmJs
 # macOS + Xcode:
 ./gradlew :joyframe:compileKotlinIosSimulatorArm64 :joyframe:compileKotlinIosArm64
+# Package consumption without a project dependency:
+./gradlew :joyframe:publishAllPublicationsToStagingRepository
+./gradlew -p consumer-check test
+./gradlew :sample:compileKotlinDesktop -Pjoyframe.usePublished=true
 ```
 
 [Architecture](docs/architecture.md) · [Publication checklist](docs/publishing.md)

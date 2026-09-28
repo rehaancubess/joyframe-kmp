@@ -12,7 +12,7 @@ See `verification.md` for checks actually performed on this extraction.
 
 ## Android
 
-Call `JoyframeAndroid.initialize(applicationContext)` before `Audio.prepare`.
+Call `JoyframeAndroid.initialize(applicationContext)` before constructing `AudioPlayer` (or `Audio.prepare`).
 Forward inputs from your Activity:
 
 ```kotlin
@@ -31,8 +31,9 @@ The toolkit does not install an Activity lifecycle observer automatically.
 
 This alpha exposes an arcade preset: left X/D-pad for horizontal, RT minus LT /
 D-pad for vertical (iOS additionally falls back to left Y), RB or west face for
-action, south/east for confirm/cancel, Start for pause. Raw left-stick Y retains
-the platform sign convention. Do not treat these as a complete uniform raw input
+action, south/east for confirm/cancel, Start for pause. Raw left-stick Y is now
+positive up on every backend. `ActionInput` combines this stick with keyboard/touch
+movement and action edges. Do not treat these as a complete raw-all-buttons input
 API yet. Only the first controller is used. Android callers must forward events.
 
 Rumble is best effort on Android/browser. Desktop and iOS controller rumble are
@@ -43,20 +44,30 @@ work. No background key capture is performed by the toolkit.
 
 ## Audio
 
-Configure one process-wide bank. Provide `PcmSound(ShortArray(...))` containing
-44.1 kHz mono PCM, or use `PcmSound.tone`. Arbitrary WAV/MP3 decoding is not a
-public API yet. Native effects are preloaded asynchronously; calls before ready
+Create a scene-owned `AudioPlayer`. Provide `PcmSound(ShortArray(...))` containing
+44.1 kHz mono PCM, `PcmSound.tone`, or `PcmSound.fromWav(bytes)` for 44.1 kHz
+PCM16 mono/stereo RIFF/WAVE. Other WAV formats/MP3 are not supported.
+Native effects are preloaded asynchronously; calls before ready
 are discarded. Up to four effects overlap, with two native voices per sound.
 Old native cues expire after 100 ms; stop invalidates pending cues.
 
-Call `Audio.stop()` on leaving the game. It stops playback but does not unload
-the process-wide bank. Full unload/reinitialization and explicit readiness/error
-reporting are planned. Browser playback requires a click/key/touch after setup.
+Observe `AudioPlayer.status`: Loading, AwaitingGesture (web), Ready, Failed or Closed.
+Call `close()` on leaving the scene. It invalidates pending cues and releases
+native clips/buffers/players, browser contexts and registered listeners. Native
+cleanup is asynchronous on the audio worker. `stop()` only stops playback.
+The legacy `Audio` facade can replace its bank and has `close()` too.
+Browser playback requires a click/key/touch after setup; readiness is not a
+guarantee that the hardware output is audible or unmuted.
 
 ## Rendering
 
+For browsers, mount `ComposeViewport` in a dedicated full-window `div` with
+`z-index: 0`, **not `document.body`**. Compose attaches a shadow root; owning the
+body hides the sibling WebGL canvas and produces a blank scene. Lake Lab's HTML
+and Wasm entry point demonstrate the required arrangement.
+
 `GameView` displays frames; your coroutine or simulation owns updates. iOS uses
-Metal's display loop; desktop and browser use Compose frame timing; Android
+Metal's display loop; desktop uses Compose frame timing and browser uses native requestAnimationFrame; Android
 requests a draw on frame publication. Pause simulation separately.
 
 macOS uses a dedicated offscreen CGL context and pixel readback into Compose.

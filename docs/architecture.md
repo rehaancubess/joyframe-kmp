@@ -30,10 +30,14 @@ smaller. The original app's HUD, native overlay workarounds, diagnostics UI and
 simulation-clock integration are not copied wholesale. They require separate
 generic APIs and hardware validation before claiming equivalent integration.
 
+Alpha02 adds a scene builder, primitives, shared actions, a lifecycle-aware clock,
+and owned audio with readiness/failure/resource-release APIs. Lake Lab exercises
+them without private game dependencies. `consumer-check` is a separate Gradle
+build depending only on Maven artifacts, not `project` or `includeBuild`.
+
 Next priorities: hardware smoke tests on every target; input lifecycle/device
-disconnect hardening; full configurable raw controller state; audio readiness,
-failure and resource-release APIs; a safer cross-platform Compose overlay path;
-and an approachable scene builder with portable defaults. The macOS viewport
+disconnect hardening; full configurable raw controller state; and a safer
+cross-platform Compose overlay path. The macOS viewport
 uses extracted offscreen CGL rendering to avoid heavyweight view origin problems;
 its readback cost is documented. API stability is not
 promised before 1.0.

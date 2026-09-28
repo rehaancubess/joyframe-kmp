@@ -11,22 +11,27 @@ import javax.sound.sampled.Clip
 import javax.sound.sampled.FloatControl
 
 
-internal actual object PlatformAudio {
+internal actual fun createAudioBackend(bank: AudioBank): AudioBackend = DesktopAudio(bank)
+private val audioDeviceLock = Any()
+private class DesktopAudio(bank: AudioBank) : AudioBackend {
     private val mixer: DesktopMixer = if (
         System.getProperty("os.name").contains("mac", ignoreCase = true)
-    ) MacOpenAlMixer() else JavaSoundMixer()
+    ) MacOpenAlMixer(bank) else JavaSoundMixer(bank)
     private val worker = QueuedSoundEffects(
-        load = mixer::load,
-        playNow = mixer::play,
-        stopNow = mixer::stop,
-        engineNow = mixer::setEngineEnabled,
+        load = { synchronized(audioDeviceLock) { mixer.load() } },
+        playNow = { id, volume -> synchronized(audioDeviceLock) { mixer.play(id,volume) } },
+        stopNow = { synchronized(audioDeviceLock) { mixer.stop() } },
+        engineNow = { synchronized(audioDeviceLock) { mixer.setEngineEnabled(it) } },
+        releaseNow = { synchronized(audioDeviceLock) { mixer.close() } },
     )
 
-    actual fun setForeground(value: Boolean) = worker.setForeground(value)
-    actual fun prepare() = worker.prepare()
-    actual fun play(id: SoundId, volume: Float) = worker.play(id, volume)
-    actual fun setEngineEnabled(enabled: Boolean) = worker.setEngine(enabled)
-    actual fun stop() = worker.stop()
+    override val status get() = worker.status
+    override fun setForeground(value: Boolean) = worker.setForeground(value)
+    override fun prepare() = worker.prepare()
+    override fun play(id: SoundId, volume: Float) = worker.play(id, volume)
+    override fun setEngineEnabled(enabled: Boolean) = worker.setEngine(enabled)
+    override fun stop() = worker.stop()
+    override fun close() = worker.close()
 }
 
 private interface DesktopMixer {
@@ -34,24 +39,25 @@ private interface DesktopMixer {
     fun play(id: SoundId, volume: Float)
     fun stop()
     fun setEngineEnabled(enabled: Boolean)
+    fun close()
 }
 
 
-private class JavaSoundMixer : DesktopMixer {
+private class JavaSoundMixer(private val bank: AudioBank) : DesktopMixer {
     private val voices = HashMap<SoundId, List<Clip>>()
     private val playingVoices = ArrayDeque<Clip>()
     private var engine: Clip? = null
 
-    private fun openClip(wav: ByteArray): Clip? = runCatching {
+    private fun openClip(wav: ByteArray): Clip {
         val clip = AudioSystem.getClip()
         try {
             AudioSystem.getAudioInputStream(ByteArrayInputStream(wav)).use(clip::open)
-            clip
+            return clip
         } catch (failure: Throwable) {
             clip.close()
             throw failure
         }
-    }.getOrNull()
+    }
 
     private fun setVolume(clip: Clip, value: Float) {
         if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
@@ -62,10 +68,11 @@ private class JavaSoundMixer : DesktopMixer {
     }
 
     override fun load() {
-        for ((id, wav) in AudioBank.effects) {
-            voices[id] = (0 until 2).mapNotNull { openClip(wav) }
+        for ((id, wav) in bank.effects) {
+            voices[id] = emptyList()
+            repeat(2) { voices[id] = voices.getValue(id) + openClip(wav) }
         }
-        engine = openClip(AudioBank.loopBytes)?.also { setVolume(it, AudioBank.loopVolume) }
+        engine = bank.loopBytes?.let(::openClip)?.also { setVolume(it, bank.loopVolume) }
     }
 
     override fun play(id: SoundId, volume: Float) {
@@ -88,10 +95,14 @@ private class JavaSoundMixer : DesktopMixer {
     override fun setEngineEnabled(enabled: Boolean) {
         if (enabled) engine?.loop(Clip.LOOP_CONTINUOUSLY) else engine?.stop()
     }
+    override fun close() {
+        stop(); voices.values.flatten().forEach { it.close() }; voices.clear()
+        engine?.close(); engine=null
+    }
 }
 
 
-private class MacOpenAlMixer : DesktopMixer {
+private class MacOpenAlMixer(private val bank: AudioBank) : DesktopMixer {
     private val api by lazy {
         Native.load("/System/Library/Frameworks/OpenAL.framework/OpenAL", MacOpenAl::class.java)
     }
@@ -101,30 +112,27 @@ private class MacOpenAlMixer : DesktopMixer {
     private val voices = HashMap<SoundId, IntArray>()
     private val playingVoices = ArrayDeque<Int>()
     private var engineSource = 0
+    private val buffers = mutableListOf<Int>()
+    private val allSources = mutableListOf<Int>()
 
     internal val available: Boolean get() = ready
     internal val hasPlayingVoice: Boolean
         get() = activate() && playingVoices.any { sourceState(it) == AL_PLAYING }
 
     override fun load() {
-        runCatching {
             device = checkNotNull(api.alcOpenDevice(null)) { "OpenAL has no default output device" }
             context = checkNotNull(api.alcCreateContext(device, null)) { "OpenAL could not create a context" }
             check(api.alcMakeContextCurrent(context).toInt() != 0) { "OpenAL could not activate its context" }
-            for ((id, wav) in AudioBank.effects) {
+            for ((id, wav) in bank.effects) {
                 val buffer = makeBuffer(wav)
                 voices[id] = IntArray(2) { makeSource(buffer) }
             }
-            engineSource = makeSource(makeBuffer(AudioBank.loopBytes)).also { source ->
+            engineSource = bank.loopBytes?.let { makeSource(makeBuffer(it)) }?.also { source ->
                 api.alSourcei(source, AL_LOOPING, AL_TRUE)
-                api.alSourcef(source, AL_GAIN, AudioBank.loopVolume)
-            }
+                api.alSourcef(source, AL_GAIN, bank.loopVolume)
+            } ?: 0
             ready = true
             System.err.println("[audio] macOS OpenAL mixer ready")
-        }.onFailure { failure ->
-            ready = false
-            System.err.println("[audio] Could not start the macOS mixer: ${failure.message}")
-        }
     }
 
     override fun play(id: SoundId, volume: Float) {
@@ -153,10 +161,23 @@ private class MacOpenAlMixer : DesktopMixer {
 
     private fun activate(): Boolean = ready && api.alcMakeContextCurrent(context).toInt() != 0
 
+    override fun close() {
+        if(context != null) {
+            api.alcMakeContextCurrent(context)
+            allSources.forEach { api.alSourceStop(it); api.alDeleteSources(1,intArrayOf(it)) }
+            buffers.forEach { api.alDeleteBuffers(1,intArrayOf(it)) }
+            api.alcMakeContextCurrent(null)
+            api.alcDestroyContext(context)
+        }
+        if(device != null) api.alcCloseDevice(device)
+        context=null; device=null; ready=false; voices.clear(); allSources.clear(); buffers.clear()
+    }
+
     private fun makeBuffer(wav: ByteArray): Int {
         check(wav.size > WAV_HEADER_BYTES) { "Audio buffer is empty" }
         val buffer = IntByReference()
         api.alGenBuffers(1, buffer)
+        buffers += buffer.value
         val pcm = wav.copyOfRange(WAV_HEADER_BYTES, wav.size)
         api.alBufferData(buffer.value, AL_FORMAT_MONO16, pcm, pcm.size, Wav.SAMPLE_RATE)
         check(api.alGetError() == AL_NO_ERROR) { "OpenAL rejected an audio buffer" }
@@ -166,6 +187,7 @@ private class MacOpenAlMixer : DesktopMixer {
     private fun makeSource(buffer: Int): Int {
         val source = IntByReference()
         api.alGenSources(1, source)
+        allSources += source.value
         api.alSourcei(source.value, AL_BUFFER, buffer)
         check(api.alGetError() == AL_NO_ERROR) { "OpenAL rejected an audio source" }
         return source.value
@@ -192,6 +214,10 @@ private interface MacOpenAl : Library {
     fun alcOpenDevice(deviceName: String?): Pointer?
     fun alcCreateContext(device: Pointer?, attributes: IntArray?): Pointer?
     fun alcMakeContextCurrent(context: Pointer?): Byte
+    fun alcDestroyContext(context: Pointer?)
+    fun alcCloseDevice(device: Pointer?): Byte
+    fun alDeleteSources(count: Int, sources: IntArray)
+    fun alDeleteBuffers(count: Int, buffers: IntArray)
     fun alGenBuffers(count: Int, buffers: IntByReference)
     fun alBufferData(buffer: Int, format: Int, data: ByteArray, size: Int, frequency: Int)
     fun alGenSources(count: Int, sources: IntByReference)

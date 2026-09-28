@@ -35,7 +35,7 @@ internal fun MacGameView(frame: GpuSceneFrame, modifier: Modifier, active: Boole
     } }
     val dispatcher = remember { executor.asCoroutineDispatcher() }
     val renderer = remember { MacFramebuffer() }
-    LaunchedEffect(size, active) {
+    LaunchedEffect(size, active, if(active) null else frame) {
         if (size.width <= 0 || size.height <= 0) return@LaunchedEffect
         val scale = minOf(1f,1200f / size.width,1200f / size.height)
         val width = (size.width*scale).roundToInt().coerceAtLeast(1)

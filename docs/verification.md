@@ -1,4 +1,40 @@
-# Verification of the initial extraction
+# Verification
+
+## Alpha02 — Lake Lab and owned APIs
+
+Local checks on 22 September 2026, macOS / JDK 17 / Kotlin 2.3.20:
+
+- 32 library desktop tests and 2 sample desktop tests passed. New coverage includes
+  input normalization/edges, quick keyboard taps, pause/resume, model fitting,
+  mesh builders, WAV validation and audio failure/close-during-preload cleanup.
+- Desktop sample packaged; Android sample debug APK built; Wasm browser distribution built;
+  iOS device sample compiled and iOS ARM64 simulator framework **linked**, not just compiled.
+- Maven artifacts for all library targets staged locally. The standalone `consumer-check`
+  passed its integration test without a project dependency (35 total tests across the
+  three builds). The final desktop/browser/Android/iOS showcase builds also passed
+  with `-Pjoyframe.usePublished=true`, consuming the locally staged Maven artifact.
+- Native macOS preview rendered the lake, border trees and actual locally injected textured boat.
+  Audio reported Ready. Its automated window session remained backgrounded; the complete
+  gameplay interaction smoke test below was performed in the browser instead.
+- Browser preview visually rendered the same imported boat/water. Drag steering changed
+  boat coordinates; pause froze them despite further drag; reset returned to 0,0;
+  resume and horn were exercised. Audio changed from AwaitingGesture to Ready.
+  Keyboard P paused the game after pointer focus. Narrow layout was visibly checked.
+  Audibility itself was not verified.
+- Found and fixed a real browser integration error: ComposeViewport must own a dedicated
+  div, not body, so its shadow root does not hide the WebGL canvas.
+- Public-source audit passed. Preview GLB is opt-in and staged only under ignored build
+  outputs. A build without the property was checked to remove it from the browser distribution.
+
+Not yet verified: physical Android/iOS devices, Windows/Linux runtime, physical gamepads,
+audible output, memory stability under repeated native scene recreation, browser context-loss
+recovery, or an independently signed iOS sample app. No public release/upload was performed.
+The original game's existing device coverage is not proof of this new host's coverage.
+
+Known warnings remain: expect/actual beta declarations and duplicate native
+Compose/AndroidX metadata names. They did not prevent the simulator framework link.
+
+## Alpha01 — initial extraction
 
 Local checks on 22 September 2026, macOS / JDK 17 / Kotlin 2.3.20:
 

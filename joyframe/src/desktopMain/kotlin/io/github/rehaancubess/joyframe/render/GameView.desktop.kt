@@ -18,11 +18,11 @@ actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean) {
     }
     val canvas = remember { SceneCanvas(frame) }
     SideEffect { canvas.frame = frame }
-    LaunchedEffect(canvas, active) {
-        while (active && isActive) {
+    LaunchedEffect(canvas, active, if(active) null else frame) {
+        do {
             withFrameNanos { }
             if (canvas.isValid && canvas.isShowing) canvas.render()
-        }
+        } while (active && isActive)
     }
     DisposableEffect(canvas) { onDispose { canvas.release() } }
     SwingPanel(factory = { canvas }, modifier = modifier)

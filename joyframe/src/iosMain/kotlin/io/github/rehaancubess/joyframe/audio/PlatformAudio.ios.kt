@@ -11,20 +11,23 @@ import platform.Foundation.*
 import platform.UIKit.*
 
 
-internal actual object PlatformAudio {
+internal actual fun createAudioBackend(bank: AudioBank): AudioBackend = IosAudio(bank)
+private class IosAudio(private val bank: AudioBank) : AudioBackend {
+    private var requestedForeground = true
+    private var applicationActive = true
     private val effects = mutableMapOf<SoundId, List<AVAudioPlayer>>()
     private val playingVoices = ArrayDeque<AVAudioPlayer>()
     private var engine: AVAudioPlayer? = null
     private fun player(wav: ByteArray): AVAudioPlayer {
         val data = wav.usePinned { NSData.create(bytes = it.addressOf(0), length = wav.size.toULong()) }
-        return AVAudioPlayer(data = data, error = null).apply { prepareToPlay() }
+        return AVAudioPlayer(data = data, error = null).apply { check(prepareToPlay()) { "AVAudioPlayer could not prepare WAV" } }
     }
     private val worker = QueuedSoundEffects(
         load = {
             AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryAmbient, null)
             AVAudioSession.sharedInstance().setActive(true, null)
-            for ((id, wav) in AudioBank.effects) effects[id] = List(2) { player(wav) }
-            engine = player(AudioBank.loopBytes).apply { numberOfLoops = -1; volume = AudioBank.loopVolume }
+            for ((id, wav) in bank.effects) effects[id] = List(2) { player(wav) }
+            engine = bank.loopBytes?.let(::player)?.apply { numberOfLoops = -1; volume = bank.loopVolume }
         },
         playNow = { id, volume ->
             playingVoices.removeAll { !it.playing }
@@ -50,18 +53,24 @@ internal actual object PlatformAudio {
                 engine?.play()
             } else engine?.pause()
         },
+        releaseNow = { effects.clear(); playingVoices.clear(); engine=null },
     )
     private val observers = listOf(
         NSNotificationCenter.defaultCenter.addObserverForName(UIApplicationWillResignActiveNotification,
-            null, NSOperationQueue.mainQueue) { worker.setForeground(false) },
+            null, NSOperationQueue.mainQueue) { applicationActive=false; worker.setForeground(false) },
         NSNotificationCenter.defaultCenter.addObserverForName(UIApplicationDidBecomeActiveNotification,
-            null, NSOperationQueue.mainQueue) { worker.setForeground(true) },
+            null, NSOperationQueue.mainQueue) { applicationActive=true; worker.setForeground(requestedForeground) },
     )
 
-    actual fun setForeground(value: Boolean) = worker.setForeground(value)
-    actual fun prepare() = worker.prepare()
-    actual fun play(id: SoundId, volume: Float) = worker.play(id, volume)
-    actual fun setEngineEnabled(enabled: Boolean) = worker.setEngine(enabled)
-    actual fun stop() = worker.stop()
+    override val status get() = worker.status
+    override fun setForeground(value: Boolean) { requestedForeground=value; worker.setForeground(value && applicationActive) }
+    override fun prepare() = worker.prepare()
+    override fun play(id: SoundId, volume: Float) = worker.play(id, volume)
+    override fun setEngineEnabled(enabled: Boolean) = worker.setEngine(enabled)
+    override fun stop() = worker.stop()
+    override fun close() {
+        observers.forEach { NSNotificationCenter.defaultCenter.removeObserver(it) }
+        worker.close()
+    }
 
 }

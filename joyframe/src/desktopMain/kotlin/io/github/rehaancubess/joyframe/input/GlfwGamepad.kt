@@ -86,7 +86,7 @@ internal object GlfwGamepad : DesktopGamepadBackend {
                 fun button(id: Int) = state.buttons(id).toInt() == GLFW.GLFW_PRESS
 
                 val stickX = state.axes(GLFW.GLFW_GAMEPAD_AXIS_LEFT_X)
-                val stickY = state.axes(GLFW.GLFW_GAMEPAD_AXIS_LEFT_Y)
+                val stickY = -state.axes(GLFW.GLFW_GAMEPAD_AXIS_LEFT_Y)
                 var horizontal = stickX
                 if (button(GLFW.GLFW_GAMEPAD_BUTTON_DPAD_LEFT)) horizontal = -1f
                 if (button(GLFW.GLFW_GAMEPAD_BUTTON_DPAD_RIGHT)) horizontal = 1f

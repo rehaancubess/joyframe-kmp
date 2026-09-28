@@ -59,7 +59,7 @@ actual object PlatformGamepad {
                 confirm = primaryDown,
                 cancel = eastDown,
                 leftStickX = stickX,
-                leftStickY = stickY,
+                leftStickY = -stickY,
             ),
         )
     }
@@ -73,7 +73,7 @@ actual object PlatformGamepad {
                 name = name,
                 detail = "Connected",
                 leftStickX = stickX,
-                leftStickY = stickY,
+                leftStickY = -stickY,
             )
             else -> GamepadStatus(false, null, "No controller detected")
         }

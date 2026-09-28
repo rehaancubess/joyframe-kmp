@@ -7,6 +7,30 @@ import kotlinx.coroutines.*
 import kotlin.test.*
 
 class QueuedSoundEffectsTest {
+    @Test fun failedLoadIsNotReportedAsReadyAndReleasesResources() = runBlocking {
+        val released=AtomicInteger(0)
+        val plays=AtomicInteger(0)
+        val worker=QueuedSoundEffects(load={ error("No device") },playNow={ _,_->plays.incrementAndGet() },
+            stopNow={},releaseNow={ released.incrementAndGet() })
+        worker.prepare()
+        withTimeout(2000) { while(released.get()==0) delay(5) }
+        assertIs<AudioStatus.Failed>(worker.status.value)
+        worker.play(SoundId("cue"),1f); assertEquals(0,plays.get())
+        worker.close(); assertEquals(AudioStatus.Closed,worker.status.value)
+    }
+
+    @Test fun closeDuringPreloadDoesNotPublishReadyOrPlayQueuedSound() = runBlocking {
+        val entered=CompletableDeferred<Unit>(); val finish=CompletableDeferred<Unit>()
+        val released=AtomicInteger(0); val plays=AtomicInteger(0)
+        val worker=QueuedSoundEffects(load={ entered.complete(Unit); finish.await() },playNow={ _,_->plays.incrementAndGet() },
+            stopNow={},releaseNow={ released.incrementAndGet() })
+        worker.prepare(); withTimeout(2000) { entered.await() }
+        worker.close(); worker.close(); finish.complete(Unit)
+        withTimeout(2000) { while(released.get()==0) delay(5) }
+        assertEquals(AudioStatus.Closed,worker.status.value)
+        worker.play(SoundId("late"),1f); assertEquals(0,plays.get()); assertEquals(1,released.get())
+    }
+
     @Test fun engineStateSurvivesPreloadAndResumesOnceAfterBackgrounding() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val starts = AtomicInteger(0)

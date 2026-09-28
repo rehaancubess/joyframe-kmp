@@ -11,6 +11,7 @@ data class GamepadState(
     val pause: Boolean = false,
     val confirm: Boolean = false,
     val cancel: Boolean = false,
+    /** Raw stick axes: positive X is right; positive Y is up on every backend. */
     val leftStickX: Float = 0f,
     val leftStickY: Float = 0f,
 )
