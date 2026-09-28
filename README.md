@@ -8,8 +8,7 @@ It came out of a boat game, but almost nothing in it is about boats.
 
 **Experimental 0.1.0-alpha04.** Extracted from a shipping arcade boat game, but this
 standalone library is new: the original app's device coverage does not transfer
-automatically. Not yet on Maven Central. **Try it in the browser:**
-[rehaancubess.github.io/joyframe-kmp](https://rehaancubess.github.io/joyframe-kmp/).
+automatically. Not yet on Maven Central.
 
 ## Why it exists
 
@@ -138,7 +137,7 @@ export ANDROID_HOME=/path/to/android-sdk
 | Windows | `./gradlew :sample:windowsJar`, then `java -jar LakeLab-windows-x64.jar` (Java 17+) |
 | Android | `./gradlew :sample-android:assembleDebug`, then install the APK |
 | iOS simulator | `tools/ios-simulator/run.sh` |
-| Browser | `./gradlew :sample:wasmJsBrowserDevelopmentRun`, or the live demo above |
+| Browser | `./gradlew :sample:wasmJsBrowserDevelopmentRun` |
 
 To sail your own model locally, pass `-Pjoyframe.demoBoat=path/to/boat.glb` (bow along
 +Z). The file is staged only in ignored build output, never in the repository. See

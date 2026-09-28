@@ -10,7 +10,8 @@ the device, OS version, controller model and the result of each step in
   `adb install -r sample-android/build/outputs/apk/debug/sample-android-debug.apk`.
 - iOS: `./gradlew :sample:linkDebugFrameworkIosArm64` and host `MainKt.MainViewController()`
   in a signed app (see `showcase.md`).
-- Browser: open the GitHub Pages demo on the phone as well as on desktop.
+- Browser: serve `sample/build/dist/wasmJs/productionExecutable/` on your network and open it on
+  the phone as well as on desktop.
 
 ## Lake
 
