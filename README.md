@@ -19,6 +19,26 @@ steady 60 while the game ran at 39, with frames up to 350 ms. Couch play meant s
 different controller stacks, phones as controllers and tilt steering, each behaving differently per
 platform. Joyframe is those fixes, measured and pulled out of the game. [The full story](docs/why.md).
 
+## Built for vibe coding
+
+If an AI assistant writes much of your game, Joyframe is designed for how that goes wrong:
+
+- **All code, no editor.** Scenes are Kotlin data your assistant can read, write and diff.
+- **The obvious code is the fast code.** Audio never blocks the game, Android draws on its own
+  thread, phones get measured resolution caps. Naive code still runs smoothly.
+- **It can check its own work.** Render any frame to a PNG without a window, read smoothness as
+  numbers with `FramePacing`, and unit-test gameplay helpers on the JVM in seconds.
+- **It ships the rules.** [`AGENTS.md`](AGENTS.md) tells coding assistants the conventions and pitfalls.
+
+More in [vibe-coding.md](docs/vibe-coding.md).
+
+## How it compares
+
+Among Kotlin options, Joyframe is the one that puts a 3D game inside a Compose Multiplatform app on
+iOS (Metal), Android, desktop and the browser from one `commonMain`. Kool has richer rendering but no
+iOS; KorGE is 2D-first with experimental 3D; libGDX is not Kotlin Multiplatform. If you need physics,
+skeletal animation or an editor, pick something else - see the [fair comparison](docs/comparison.md).
+
 ## What is included
 
 **Rendering**

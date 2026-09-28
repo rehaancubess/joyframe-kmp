@@ -29,9 +29,10 @@ instead of played late in a burst. Loops start and stop on state changes, not pe
 pause invalidates anything still queued. After the change, sound on and sound off measured the same
 (58.8 vs 59.1 fps, game update p95 3.44 vs 3.46 ms).
 
-In Joyframe that design *is* `AudioPlayer`, on every platform. Calls return immediately even when
-the mixer is blocked (there is a test for exactly that), and fades step at 20 Hz with inaudible
-changes skipped, so a volume ramp cannot turn back into a per-frame native call.
+In Joyframe that design *is* `AudioPlayer` on Android, iOS and desktop; browsers use Web Audio,
+which does not block. Calls return immediately even when the mixer is blocked (there is a test for
+exactly that), and fades step at 20 Hz with inaudible changes skipped, so a volume ramp cannot turn
+back into a per-frame native call.
 
 ## Android said 60 fps while the game ran at 39
 

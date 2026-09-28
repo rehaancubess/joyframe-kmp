@@ -13,7 +13,8 @@
   phone browsers; Lake Lab's "Tilt to steer".
 - Audio: loop-volume changes under 0.005 are skipped and `MusicPlayer` fades step at 20 Hz.
 - iOS ignores the Simulator's synthetic "Gamepad" stand-in, as the source game does.
-- `docs/why.md`: the measured problems behind the library.
+- Docs: `why.md` (the measured problems behind the library), `comparison.md`, `vibe-coding.md`,
+  and `AGENTS.md` / `CLAUDE.md` for AI coding assistants.
 
 ## 0.1.0-alpha03 — the game's feel, couch play and sound (local, not yet released)
 
