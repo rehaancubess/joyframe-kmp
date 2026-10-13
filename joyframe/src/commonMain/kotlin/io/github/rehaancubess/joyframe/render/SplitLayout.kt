@@ -55,6 +55,7 @@ object SplitLayout {
  * [SplitLayout]. One surface rather than several views keeps a single GPU context and one upload of
  * the shared assets, so every frame should use the same `GpuSceneAssets` (same cache key).
  * Give each pane its own camera (for example its own [ChaseCamera]). [gapDp] is the gutter width.
+ * [onFirstFrame] is as for [GameView].
  */
 @Composable
 expect fun SplitGameView(
@@ -64,4 +65,5 @@ expect fun SplitGameView(
     gutter: PackedColor = SplitLayout.DefaultGutter,
     gapDp: Float = 3f,
     options: GameViewOptions = GameViewOptions.Default,
+    onFirstFrame: () -> Unit = {},
 )

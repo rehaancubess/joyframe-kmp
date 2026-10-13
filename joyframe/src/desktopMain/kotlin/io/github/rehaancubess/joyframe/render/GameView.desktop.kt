@@ -13,24 +13,30 @@ import org.lwjgl.opengl.awt.GLData
 import kotlin.math.roundToInt
 
 @Composable
-actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions) {
-    SplitGameView(listOf(frame), modifier, active, options = options)
+actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions,
+                    onFirstFrame: () -> Unit) {
+    SplitGameView(listOf(frame), modifier, active, options = options, onFirstFrame = onFirstFrame)
 }
 
 @Composable
 actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor,
-                         gapDp: Float, options: GameViewOptions) {
+                         gapDp: Float, options: GameViewOptions, onFirstFrame: () -> Unit) {
     require(frames.size in 1..SplitLayout.MAX_PANES) { "SplitGameView needs 1 to ${SplitLayout.MAX_PANES} frames" }
     if (isMac) {
-        MacGameView(frames, modifier, active, gutter, gapDp)
+        MacGameView(frames, modifier, active, gutter, gapDp, onFirstFrame)
         return
     }
     val canvas = remember { SceneCanvas(frames) }
+    val firstFrame by rememberUpdatedState(onFirstFrame)
+    var drawn by remember { mutableStateOf(false) }
     SideEffect { canvas.frames = frames; canvas.gutter = gutter; canvas.gapDp = gapDp }
     LaunchedEffect(canvas, active, if(active) null else frames) {
         do {
             withFrameNanos { }
-            if (canvas.isValid && canvas.isShowing) canvas.render()
+            if (canvas.isValid && canvas.isShowing) {
+                canvas.render()
+                if (!drawn && canvas.painted) { drawn = true; firstFrame() }
+            }
         } while (active && isActive)
     }
     DisposableEffect(canvas) { onDispose { canvas.release() } }
@@ -55,7 +61,11 @@ private class SceneCanvas(var frames: List<GpuSceneFrame>) : AWTGLCanvas(context
         backend?.renderPanes(frames, (width * sx).toInt().coerceAtLeast(1), (height * sy).toInt().coerceAtLeast(1),
             gutter, (gapDp * sx).roundToInt())
         swapBuffers()
+        if (backend != null) painted = true
     }
+    /** Whether a frame has been drawn and swapped onto the screen. */
+    @Volatile var painted = false
+        private set
     fun release() {
         if (api != null) runInContext { backend?.dispose(); api?.dispose() }
         backend = null; api = null

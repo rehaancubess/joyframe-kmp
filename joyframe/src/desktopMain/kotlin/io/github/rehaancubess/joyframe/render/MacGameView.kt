@@ -29,8 +29,10 @@ import kotlin.math.roundToInt
  */
 @Composable
 internal fun MacGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean,
-                         gutter: PackedColor, gapDp: Float) {
+                         gutter: PackedColor, gapDp: Float, onFirstFrame: () -> Unit) {
     val latest = rememberUpdatedState(frames)
+    val firstFrame by rememberUpdatedState(onFirstFrame)
+    var drawn by remember { mutableStateOf(false) }
     val latestGutter = rememberUpdatedState(gutter)
     val gapPixels = rememberUpdatedState(gapDp * LocalDensity.current.density)
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -51,6 +53,8 @@ internal fun MacGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active
             val colour = latestGutter.value
             val gap = (gapPixels.value * scale).roundToInt()
             image = withContext(dispatcher) { renderer.render(current,width,height,colour,gap) }
+            // The image shows from the next frame on, so the callback comes in time to drop a loader with it.
+            if (!drawn && image != null) { drawn = true; firstFrame() }
         } while (active && isActive)
     }
     DisposableEffect(renderer) {

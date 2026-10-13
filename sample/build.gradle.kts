@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 abstract class StagePreviewBoat : DefaultTask() {
     @get:InputFile @get:Optional abstract val modelFile: RegularFileProperty
@@ -21,11 +22,17 @@ plugins {
     kotlin("multiplatform")
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.android.library")
+    id("com.android.kotlin.multiplatform.library")
 }
 kotlin {
     jvm("desktop")
-    androidTarget()
+    android {
+        namespace = "example.lakelab.shared"
+        compileSdk = 37
+        minSdk = 26
+        compilerOptions { jvmTarget = JvmTarget.JVM_17 }
+        androidResources { enable = true }
+    }
     iosArm64 { binaries.framework { baseName="LakeLab"; isStatic=true } }
     iosSimulatorArm64 { binaries.framework { baseName="LakeLab"; isStatic=true } }
     @OptIn(ExperimentalWasmDsl::class)
@@ -39,8 +46,8 @@ kotlin {
             if(providers.gradleProperty("joyframe.usePublished").orNull == "true")
                 implementation("io.github.rehaancubess:joyframe:${project.version}")
             else implementation(project(":joyframe"))
-            implementation(compose.material)
-            implementation(compose.components.resources)
+            implementation("org.jetbrains.compose.material:material:1.11.1")
+            implementation("org.jetbrains.compose.components:components-resources:1.11.1")
         }
         getByName("desktopMain").dependencies { implementation(compose.desktop.currentOs) }
         commonTest.dependencies { implementation(kotlin("test")) }
@@ -57,15 +64,6 @@ compose.resources {
     packageOfResClass="example.resources"
     generateResClass=always
     customDirectory(sourceSetName="commonMain",directoryProvider=stagePreviewBoat.flatMap { it.outputDir })
-}
-android {
-    namespace="example.lakelab.shared"
-    compileSdk=36
-    defaultConfig { minSdk=26 }
-    compileOptions {
-        sourceCompatibility=JavaVersion.VERSION_17
-        targetCompatibility=JavaVersion.VERSION_17
-    }
 }
 // Offscreen stills and animation frames of Lake Lab (macOS). Output: sample/build/capture.
 tasks.register<JavaExec>("captureDemo") {

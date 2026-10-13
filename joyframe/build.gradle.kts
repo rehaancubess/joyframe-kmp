@@ -1,9 +1,10 @@
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.gradle.api.publish.maven.MavenPublication
 
 plugins {
     kotlin("multiplatform")
-    id("com.android.library")
+    id("com.android.kotlin.multiplatform.library")
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.vanniktech.maven.publish") version "0.37.0"
@@ -13,16 +14,21 @@ plugins {
 
 kotlin {
     jvm("desktop")
-    androidTarget { publishLibraryVariants("release") }
-    iosArm64(); iosSimulatorArm64(); iosX64()
+    android {
+        namespace = "io.github.rehaancubess.joyframe"
+        compileSdk = 37
+        minSdk = 26
+        compilerOptions { jvmTarget = JvmTarget.JVM_17 }
+    }
+    iosArm64(); iosSimulatorArm64()
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { browser() }
     jvmToolchain(17)
     sourceSets {
         commonMain.dependencies {
-            api(compose.runtime)
-            api(compose.foundation)
-            api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            api("org.jetbrains.compose.runtime:runtime:1.11.1")
+            api("org.jetbrains.compose.foundation:foundation:1.11.1")
+            api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
         }
         commonTest.dependencies { implementation(kotlin("test")) }
         val glMain by creating { dependsOn(commonMain.get()) }
@@ -31,14 +37,13 @@ kotlin {
         }
         iosArm64Main.get().dependsOn(iosMain)
         iosSimulatorArm64Main.get().dependsOn(iosMain)
-        iosX64Main.get().dependsOn(iosMain)
         androidMain.get().dependsOn(glMain)
         wasmJsMain.get().dependsOn(glMain)
         val desktopMain by getting {
             dependsOn(glMain)
             dependencies {
-                implementation(compose.desktop.common)
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
+                implementation("org.jetbrains.compose.desktop:desktop:1.11.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
                 implementation("net.java.dev.jna:jna:5.14.0")
                 for (module in listOf("lwjgl", "lwjgl-opengl", "lwjgl-glfw")) {
                     implementation("org.lwjgl:$module:3.3.6")
@@ -50,15 +55,6 @@ kotlin {
                 implementation("org.lwjglx:lwjgl3-awt:0.2.3") { isTransitive = false }
             }
         }
-    }
-}
-android {
-    namespace = "io.github.rehaancubess.joyframe"
-    compileSdk = 36
-    defaultConfig { minSdk = 26 }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 publishing {

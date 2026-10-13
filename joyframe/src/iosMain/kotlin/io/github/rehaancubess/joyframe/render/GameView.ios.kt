@@ -15,17 +15,19 @@ import platform.darwin.NSObject
 import kotlin.math.roundToInt
 
 @Composable
-actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions) {
-    SplitGameView(listOf(frame), modifier, active, options = options)
+actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions,
+                    onFirstFrame: () -> Unit) {
+    SplitGameView(listOf(frame), modifier, active, options = options, onFirstFrame = onFirstFrame)
 }
 
 @Composable
 actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor,
-                         gapDp: Float, options: GameViewOptions) {
+                         gapDp: Float, options: GameViewOptions, onFirstFrame: () -> Unit) {
     require(frames.size in 1..SplitLayout.MAX_PANES) { "SplitGameView needs 1 to ${SplitLayout.MAX_PANES} frames" }
     val host = remember { MetalHost(frames) }
     SideEffect {
         host.frames = frames; host.gutter = gutter; host.gapDp = gapDp; host.options = options
+        host.onFirstFrame = onFirstFrame
         host.view.paused = !active
     }
     UIKitView(factory = { host.view }, modifier = modifier, onRelease = {
@@ -38,6 +40,8 @@ private class MetalHost(var frames: List<GpuSceneFrame>) {
     var gutter = SplitLayout.DefaultGutter
     var gapDp = 3f
     var options = GameViewOptions.Default
+    var onFirstFrame: () -> Unit = {}
+    private var drawn = false
     private var sizedFor: Triple<Double, Double, GameViewOptions>? = null
     private val device = checkNotNull(MTLCreateSystemDefaultDevice()) { "Joyframe requires Metal" }
     private val renderer = checkNotNull(MetalSceneBackend.create(device, MTLPixelFormatBGRA8Unorm,
@@ -67,6 +71,8 @@ private class MetalHost(var frames: List<GpuSceneFrame>) {
                 val panes = SplitLayout.panes(current.size, width.toInt(), height.toInt(), gap)
                 renderer.renderSplit(current, panes, gutter, pass, view.currentDrawable)
             }
+            // MTKView draws on the main thread, so this is already the UI thread.
+            if (!drawn) { drawn = true; onFirstFrame() }
         }
         override fun mtkView(view: MTKView, drawableSizeWillChange: CValue<CGSize>) = Unit
     }

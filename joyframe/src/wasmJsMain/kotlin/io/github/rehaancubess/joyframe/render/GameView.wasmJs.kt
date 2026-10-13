@@ -18,13 +18,14 @@ import kotlin.math.roundToInt
  * The DOM canvas occupies the viewport rectangle; Compose overlays on top are not supported yet.
  */
 @Composable
-actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions) {
-    SplitGameView(listOf(frame), modifier, active, options = options)
+actual fun GameView(frame: GpuSceneFrame, modifier: Modifier, active: Boolean, options: GameViewOptions,
+                    onFirstFrame: () -> Unit) {
+    SplitGameView(listOf(frame), modifier, active, options = options, onFirstFrame = onFirstFrame)
 }
 
 @Composable
 actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active: Boolean, gutter: PackedColor,
-                         gapDp: Float, options: GameViewOptions) {
+                         gapDp: Float, options: GameViewOptions, onFirstFrame: () -> Unit) {
     require(frames.size in 1..SplitLayout.MAX_PANES) { "SplitGameView needs 1 to ${SplitLayout.MAX_PANES} frames" }
     val canvas = remember { (document.createElement("canvas") as HTMLCanvasElement).apply {
         style.position = "fixed"
@@ -39,6 +40,7 @@ actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active
     val latestGap = rememberUpdatedState(gapDp)
     val latestOptions = rememberUpdatedState(options)
     val running = rememberUpdatedState(active)
+    val firstFrame = rememberUpdatedState(onFirstFrame)
     var failure by remember { mutableStateOf<String?>(null) }
     DisposableEffect(canvas) {
         document.body?.appendChild(canvas)
@@ -64,6 +66,7 @@ actual fun SplitGameView(frames: List<GpuSceneFrame>, modifier: Modifier, active
                         if(previous==null) {
                             check(api.getError()==0) { "WebGL reported an error while drawing the first frame" }
                             canvas.setAttribute("data-joyframe-state","ready")
+                            firstFrame.value()
                         }
                         previous=current
                     }
